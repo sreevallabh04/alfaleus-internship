@@ -1,0 +1,46 @@
+/* App-specific styles */
+.App {
+  text-align: center;
+}
+
+/* Main content area */
+.container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+/* Override Bootstrap colors for brand consistency */
+:root {
+  --primary-color: #4CAF50;
+  --primary-hover: #45a049;
+  --secondary-color: #f8f9fa;
+}
+
+/* Custom button styles */
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background-color: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+/* Footer styling */
+.footer {
+  margin-top: 3rem;
+  padding: 1.5rem 0;
+  background-color: var(--secondary-color);
+  color: #6c757d;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+}
