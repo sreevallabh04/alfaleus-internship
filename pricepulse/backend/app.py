@@ -7,7 +7,8 @@ import time
 
 # Import application modules
 from models import db, Product, PriceRecord, PriceAlert
-from scraper import scrape_product
+from scraper import scrape_product, extract_amazon_product_info
+from platform_scrapers import compare_product_across_platforms, find_similar_products
 from scheduler import PriceScheduler
 from email_service import send_price_alert_email
 
@@ -353,6 +354,105 @@ def register_routes(app):
             return jsonify({
                 'success': False,
                 'error': 'Scraper test failed'
+            }), 500
+            
+    @app.route('/api/products/<int:product_id>/compare', methods=['GET'])
+    def compare_product(product_id):
+        """Compare a tracked product with similar products on other platforms."""
+        try:
+            product = Product.query.get(product_id)
+            
+            if not product:
+                return jsonify({
+                    'success': False,
+                    'error': 'Product not found'
+                }), 404
+            
+            # Compare the product across platforms
+            comparison_result = compare_product_across_platforms(product.url, 'amazon')
+            
+            if not comparison_result['success']:
+                return jsonify({
+                    'success': False,
+                    'error': comparison_result.get('error', 'Failed to compare product across platforms')
+                }), 400
+            
+            return jsonify({
+                'success': True,
+                'product': product.to_dict(),
+                'comparison_result': comparison_result
+            })
+        
+        except Exception as e:
+            logger.error(f"Error comparing product {product_id}: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to compare product across platforms'
+            }), 500
+            
+    @app.route('/api/compare', methods=['POST'])
+    def compare_any_product():
+        """Compare any product URL with similar products on other platforms."""
+        try:
+            data = request.json
+            
+            if not data or 'url' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'URL is required'
+                }), 400
+            
+            url = data['url']
+            platform = data.get('platform', 'amazon')  # Default to amazon if not specified
+            
+            # Compare the product across platforms
+            comparison_result = compare_product_across_platforms(url, platform)
+            
+            if not comparison_result['success']:
+                return jsonify({
+                    'success': False,
+                    'error': comparison_result.get('error', 'Failed to compare product across platforms')
+                }), 400
+            
+            return jsonify({
+                'success': True,
+                'comparison_result': comparison_result
+            })
+        
+        except Exception as e:
+            logger.error(f"Error comparing product: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to compare product across platforms'
+            }), 500
+            
+    @app.route('/api/search-products', methods=['POST'])
+    def search_products():
+        """Search for products across multiple platforms based on a query."""
+        try:
+            data = request.json
+            
+            if not data or 'query' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Search query is required'
+                }), 400
+            
+            query = data['query']
+            
+            # Find similar products across platforms
+            search_results = find_similar_products(query)
+            
+            return jsonify({
+                'success': True,
+                'results': search_results
+            })
+        
+        except Exception as e:
+            logger.error(f"Error searching products: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to search products across platforms'
             }), 500
 
 # Create app instance

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { Button } from 'react-bootstrap';
 import PriceChart from '../components/products/PriceChart';
 import PriceAlertForm from '../components/products/PriceAlertForm';
+import ComparisonTable from '../components/products/ComparisonTable';
 import Loader from '../components/common/Loader';
-import { getProduct, getPriceHistory } from '../services/api';
+import { getProduct, getPriceHistory, compareProduct } from '../services/api';
 
 const ProductDetailPage = () => {
   const { id } = useParams();
@@ -12,6 +14,11 @@ const ProductDetailPage = () => {
   const [priceHistory, setPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Comparison states
+  const [comparisonData, setComparisonData] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState(null);
 
   const fetchProductData = useCallback(async () => {
     try {
@@ -45,9 +52,43 @@ const ProductDetailPage = () => {
     }
   }, [id]);
 
+  // Function to fetch comparison data
+  const fetchComparisonData = useCallback(async () => {
+    if (!product || !product.id) return;
+    
+    try {
+      setComparisonLoading(true);
+      setComparisonError(null);
+      
+      const response = await compareProduct(product.id);
+      
+      if (response.success) {
+        setComparisonData(response.comparison_result);
+      } else {
+        setComparisonError(response.error || 'Failed to load comparison data');
+      }
+    } catch (err) {
+      setComparisonError('An error occurred while fetching comparison data');
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [product]);
+  
+  // Retry comparison function
+  const retryComparison = () => {
+    fetchComparisonData();
+  };
+
   useEffect(() => {
     fetchProductData();
   }, [fetchProductData]);
+  
+  // Load comparison data when product is loaded
+  useEffect(() => {
+    if (product && product.id) {
+      fetchComparisonData();
+    }
+  }, [product, fetchComparisonData]);
 
   // Calculate current price from price history
   const getCurrentPrice = () => {
@@ -145,19 +186,19 @@ const ProductDetailPage = () => {
         </div>
       </div>
       
-      {/* Future enhancement: Platform Comparison */}
+      {/* Cross-platform price comparison */}
       <div className="mt-5">
         <h3 className="mb-4">
           <i className="fas fa-store me-2"></i> Price Comparison
         </h3>
         <div className="card">
-          <div className="card-body text-center py-5">
-            <i className="fas fa-code text-muted fa-3x mb-3"></i>
-            <h4>Platform Comparison Coming Soon</h4>
-            <p className="text-muted">
-              We're working on comparing prices across multiple platforms like Flipkart, Meesho, and more.
-              Check back soon!
-            </p>
+          <div className="card-body">
+            <ComparisonTable
+              comparisonData={comparisonData}
+              loading={comparisonLoading}
+              error={comparisonError}
+              onRetry={retryComparison}
+            />
           </div>
         </div>
       </div>

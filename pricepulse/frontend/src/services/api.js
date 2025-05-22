@@ -369,6 +369,47 @@ export const testProductUrl = async (url) => {
   }
 };
 
+/**
+ * Compare a tracked product with similar products on other platforms
+ */
+export const compareProduct = async (productId) => {
+  return getWithOfflineFallback(
+    async () => {
+      const response = await callWithRetry(() => apiClient.get(`/products/${productId}/compare`));
+      return response.data || response;
+    },
+    `product_comparison_${productId}`,
+    { comparison: { amazon: [], flipkart: [] } } // Empty comparison data as fallback
+  );
+};
+
+/**
+ * Compare any product URL with similar products on other platforms
+ */
+export const compareProductUrl = async (url, platform = 'amazon') => {
+  try {
+    const response = await callWithRetry(() => 
+      apiClient.post('/compare', { url, platform })
+    );
+    return response.data || response;
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+/**
+ * Search for products across multiple platforms based on a query
+ */
+export const searchProducts = async (query) => {
+  try {
+    const response = await callWithRetry(() => 
+      apiClient.post('/search-products', { query })
+    );
+    return response.data || response;
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
 
 // Create a named API service object with all methods
 const apiService = {
@@ -379,6 +420,9 @@ const apiService = {
   getPriceHistory,
   createPriceAlert,
   testProductUrl,
+  compareProduct,
+  compareProductUrl,
+  searchProducts,
   checkApiHealth,
   callWithRetry // Export the retry helper for use in other modules if needed
 };
