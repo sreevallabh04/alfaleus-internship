@@ -59,16 +59,25 @@ def create_app():
     # Initialize the scheduler
     try:
         scheduler_interval = int(os.getenv('SCHEDULER_INTERVAL_MINUTES', 60))
+        # Create explicit model dictionary instead of globals()
+        model_dict = {
+            "Product": Product,
+            "PriceRecord": PriceRecord,
+            "PriceAlert": PriceAlert
+        }
         scheduler = PriceScheduler(
+            app=app,  # Pass the Flask app instance for context
             interval_minutes=scheduler_interval,
             job_function=scrape_product,
             db=db,
-            models=globals()  # Pass all models (Product, PriceRecord, PriceAlert)
+            models=model_dict  # Pass explicit model dictionary
         )
         scheduler.start()
         logger.info(f"Scheduler started with {scheduler_interval} minute interval")
     except Exception as e:
         logger.error(f"Error starting scheduler: {e}")
+        import traceback
+        logger.error(f"Scheduler error details: {traceback.format_exc()}")
         # Don't raise here, the app can function without the scheduler
     
     # Register API routes with the app
@@ -127,7 +136,13 @@ def register_routes(app):
                 })
             
             # Scrape product and add to database
-            result = scrape_product(url, db, globals())
+            # Create model dictionary for scraper
+            model_dict = {
+                "Product": Product,
+                "PriceRecord": PriceRecord,
+                "PriceAlert": PriceAlert
+            }
+            result = scrape_product(url, db, model_dict)
             
             if not result['success']:
                 return jsonify({

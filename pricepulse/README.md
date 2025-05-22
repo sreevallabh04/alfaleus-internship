@@ -2,8 +2,6 @@
 
 PricePulse is a full-stack web application that allows users to track Amazon product prices, view price history, and receive alerts when prices drop below a specified threshold.
 
-![PricePulse Screenshot](https://via.placeholder.com/800x450?text=PricePulse+Screenshot)
-
 ## Features
 
 - **Amazon Product Tracking**: Add any Amazon product URL to track its price
@@ -25,7 +23,57 @@ PricePulse is a full-stack web application that allows users to track Amazon pro
 - BeautifulSoup/Selenium for web scraping
 - APScheduler for automated price checking
 
-## Setup Instructions
+## Quick Start Guide
+
+### Option 1: Unified Startup Script (Recommended)
+
+The easiest way to run the application is using our unified Python startup script:
+
+```bash
+python start_app.py
+```
+
+This script will:
+- Check all prerequisites
+- Start the backend server
+- Start the frontend server
+- Open the application in your browser
+- Provide an easy way to stop both servers (Ctrl+C)
+
+### Option 2: Separate Startup Scripts
+
+We've also provided separate scripts for both Windows and Linux/Mac users:
+
+#### Windows Users
+
+1. Start the backend server first:
+   - Double-click `start_backend.bat` or run it from command prompt
+   - Wait until you see "Running on http://0.0.0.0:5000"
+
+2. Start the frontend server:
+   - Double-click `start_frontend.bat` or run it from command prompt
+   - A browser window should automatically open at http://localhost:3000
+
+#### Linux/Mac Users
+
+1. Make the scripts executable:
+   ```bash
+   chmod +x start_backend.sh start_frontend.sh
+   ```
+
+2. Start the backend server first:
+   ```bash
+   ./start_backend.sh
+   ```
+
+3. In a new terminal window, start the frontend server:
+   ```bash
+   ./start_frontend.sh
+   ```
+
+## Detailed Setup Instructions
+
+If you prefer to set up manually or encounter issues with the scripts, follow these detailed instructions:
 
 ### Prerequisites
 
@@ -42,12 +90,12 @@ PricePulse is a full-stack web application that allows users to track Amazon pro
 
 2. Create a virtual environment (optional but recommended):
    ```bash
+   # Windows
    python -m venv venv
-   
-   # Activate on Windows
    venv\Scripts\activate
    
-   # Activate on macOS/Linux
+   # Linux/Mac
+   python -m venv venv
    source venv/bin/activate
    ```
 
@@ -56,15 +104,15 @@ PricePulse is a full-stack web application that allows users to track Amazon pro
    pip install -r requirements.txt
    ```
 
-4. Set up environment variables by creating a `.env` file in the backend directory with the following contents:
+4. Configure environment variables by editing the `.env` file in the backend directory:
    ```
    DATABASE_URI=sqlite:///pricepulse.db
    SCHEDULER_INTERVAL_MINUTES=60
-   EMAIL_HOST=smtp.example.com
+   EMAIL_HOST=smtp.gmail.com
    EMAIL_PORT=587
-   EMAIL_USERNAME=your_email@example.com
+   EMAIL_USER=your_email@gmail.com
    EMAIL_PASSWORD=your_app_password
-   EMAIL_FROM=your_email@example.com
+   EMAIL_FROM=your_email@gmail.com
    ```
 
 5. Run the Flask backend server:
@@ -97,48 +145,58 @@ PricePulse is a full-stack web application that allows users to track Amazon pro
 
    The frontend should now be running at http://localhost:3000
 
-## Important Notes
+## Troubleshooting Common Issues
 
-1. **Both Services Must Be Running**: Both the backend and frontend servers need to be running for the application to work properly.
+### "Backend server is not running" Error
 
-2. **First Run Database**: The first time you run the application, the database will be automatically created with the necessary tables.
+If you see this error message in the application:
 
-3. **Email Configuration**: To enable price drop alerts, ensure you've set up proper SMTP settings in the `.env` file.
+1. Verify the backend is running:
+   - Check if the Flask server is running in a terminal
+   - Verify it's accessible at http://localhost:5000/api/health
+   - If not running, start it using the instructions above
 
-4. **Web Scraping Limitations**: Amazon may block excessive scraping attempts. The application implements best practices to avoid being blocked, but be mindful of adding too many products.
+2. Check for Python environment issues:
+   - Ensure all requirements are installed (`pip install -r requirements.txt`)
+   - Try creating a fresh virtual environment if you encounter import errors
 
-## Troubleshooting
+3. Check for port conflicts:
+   - If port 5000 is already in use, edit the `app.py` file to use a different port
+   - Update the frontend proxy configuration accordingly
 
-### "Server Error" When Loading Products
+### Chrome/Selenium Issues
 
-If you see a "Server Error" when trying to load products, ensure:
+The web scraper uses Selenium with Chrome as a fallback method. If you encounter issues:
 
-1. The backend Flask server is running at http://localhost:5000
-2. Your internet connection is active
-3. The database has been properly initialized
-4. No firewall is blocking connections between frontend and backend
+1. Install Chrome browser if not already installed
+2. The app includes fallback mechanisms, but if scraping fails entirely:
+   - Check your internet connection
+   - Verify Amazon is accessible from your location
+   - Try using a different URL format (product URLs can vary by region)
 
-You can verify the backend is running by accessing http://localhost:5000/api/health in your browser, which should return a JSON response indicating the API is running.
+### Email Alerts Not Working
 
-### Scraping Issues
+1. Verify your email configuration in the `.env` file
+2. For Gmail, you need to:
+   - Enable "Less secure app access" or
+   - Use an App Password if you have 2-factor authentication enabled
+3. Test your email configuration by setting a price alert
 
-If product details aren't being fetched correctly:
+## Production Deployment
 
-1. Check that the Amazon URL is valid
-2. Ensure you're not being rate-limited by Amazon
-3. Try adding a user-agent in the scraper.py file if needed
+For production deployment:
+
+1. Set `DEBUG=False` in the backend `.env` file
+2. Configure a production database (PostgreSQL recommended)
+3. Set up a proper WSGI server (e.g., Gunicorn) for the Flask backend
+4. Build the React frontend: `npm run build`
+5. Serve the frontend build using Nginx or another web server
+6. Configure proper CORS settings between your frontend and backend servers
 
 ## Architecture
 
 For a detailed overview of the system architecture, check the [architecture.md](./architecture.md) file.
 
-## Development
-
-The architecture follows clean separation of concerns:
-- Backend API handles data persistence, scheduled jobs, and web scraping
-- Frontend provides an intuitive user interface and data visualization
-- Communication happens via RESTful API endpoints
-
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License.

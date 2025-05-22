@@ -2,15 +2,10 @@ import requests
 import time
 import random
 import logging
+import re
+import json
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from urllib.parse import urlparse, parse_qs
 
 # Configure logging
 logging.basicConfig(
@@ -29,59 +24,88 @@ HEADERS = {
     'Referer': 'https://www.google.com/'
 }
 
-def get_soup_with_requests(url):
-    """Attempt to get the soup using the requests library."""
-    try:
-        # Add a random delay to avoid being blocked
-        time.sleep(random.uniform(1, 3))
-        response = requests.get(url, headers=HEADERS, timeout=10)
-        response.raise_for_status()  # Raise an exception for HTTP errors
+def get_normalized_amazon_url(url):
+    """
+    Extract and normalize the Amazon product URL to get a clean ASIN-based URL.
+    
+    Args:
+        url (str): The Amazon product URL
         
-        return BeautifulSoup(response.content, 'lxml')
-    except requests.RequestException as e:
-        logger.error(f"Error using requests: {e}")
-        return None
+    Returns:
+        str: Normalized Amazon URL or original URL if parsing fails
+    """
+    try:
+        # Parse the URL
+        parsed_url = urlparse(url)
+        
+        # Check if it's an Amazon domain
+        if not any(domain in parsed_url.netloc for domain in ['amazon.com', 'amazon.in', 'amazon.']):
+            return url
+        
+        # Try to extract ASIN from URL path
+        asin_match = re.search(r'/dp/([A-Z0-9]{10})(?:/|$)', url)
+        if asin_match:
+            asin = asin_match.group(1)
+        else:
+            # Try to get it from query parameters
+            query_params = parse_qs(parsed_url.query)
+            asin = query_params.get('asin', [None])[0]
+            
+            # If still not found, try additional patterns
+            if not asin:
+                # Try product ID pattern
+                prod_match = re.search(r'/product/([A-Z0-9]{10})(?:/|$)', url)
+                if prod_match:
+                    asin = prod_match.group(1)
+                else:
+                    # Try gp/product pattern
+                    gp_match = re.search(r'/gp/product/([A-Z0-9]{10})(?:/|$)', url)
+                    if gp_match:
+                        asin = gp_match.group(1)
+        
+        # If ASIN found, construct a clean URL
+        if asin:
+            domain = parsed_url.netloc
+            return f"https://{domain}/dp/{asin}"
+        
+        return url
+    except Exception as e:
+        logger.error(f"Error normalizing Amazon URL: {e}")
+        return url
 
-def get_soup_with_selenium(url):
-    """Get the soup using Selenium when requests fails."""
-    driver = None
-    try:
-        # Configure Chrome options
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Run in headless mode
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument(f"user-agent={HEADERS['User-Agent']}")
-        
-        # Initialize the Chrome driver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        
-        # Set page load timeout
-        driver.set_page_load_timeout(30)
-        
-        # Navigate to the URL
-        driver.get(url)
-        
-        # Wait for the page to load
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//body"))
-        )
-        
-        # Add a random delay to simulate human behavior
-        time.sleep(random.uniform(2, 5))
-        
-        # Get the page source
-        page_source = driver.page_source
-        
-        return BeautifulSoup(page_source, 'lxml')
-    except (TimeoutException, WebDriverException) as e:
-        logger.error(f"Error using Selenium: {e}")
-        return None
-    finally:
-        if driver:
-            driver.quit()
+def get_soup_with_requests(url, retries=3):
+    """Get the soup using the requests library with multiple retries."""
+    for attempt in range(retries):
+        try:
+            # Rotate user agents
+            headers = HEADERS.copy()
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
+            ]
+            headers['User-Agent'] = random.choice(user_agents)
+            
+            # Add a random delay to avoid being blocked
+            delay = random.uniform(1, 3) * (attempt + 1)
+            time.sleep(delay)
+            
+            # Make the request
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            # Check if we got a captcha page
+            if 'captcha' in response.text.lower() or 'robot check' in response.text.lower():
+                logger.warning(f"Captcha detected on attempt {attempt+1}. Retrying...")
+                continue
+                
+            return BeautifulSoup(response.content, 'html.parser')
+        except requests.RequestException as e:
+            logger.warning(f"Request attempt {attempt+1} failed: {e}")
+            if attempt == retries - 1:
+                logger.error(f"All {retries} attempts failed")
+                return None
 
 def extract_amazon_product_info(url):
     """
@@ -95,68 +119,179 @@ def extract_amazon_product_info(url):
     """
     logger.info(f"Scraping Amazon product: {url}")
     
-    # Try with requests first
-    soup = get_soup_with_requests(url)
+    # Normalize the URL to get a clean ASIN-based URL
+    normalized_url = get_normalized_amazon_url(url)
+    logger.info(f"Normalized URL: {normalized_url}")
     
-    # If requests failed, try with Selenium
-    if not soup:
-        logger.info("Requests approach failed, trying with Selenium")
-        soup = get_soup_with_selenium(url)
+    # Try with requests with multiple retries
+    soup = get_soup_with_requests(normalized_url, retries=3)
     
-    # If both methods failed, return an error
+    # If all methods failed, return an error
     if not soup:
-        logger.error("Both scraping methods failed")
+        logger.error("Scraping failed")
         return {
             'success': False,
-            'error': 'Failed to retrieve product information'
+            'error': 'Failed to retrieve product information. Please check the URL and try again.'
         }
     
     try:
+        # First try to extract data using JSON-LD
+        json_ld = None
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = json.loads(script.string)
+                if '@type' in data and data['@type'] in ['Product', 'ItemPage']:
+                    json_ld = data
+                    break
+            except (json.JSONDecodeError, AttributeError):
+                continue
+        
         # Extract product name
-        product_name_element = soup.select_one('#productTitle')
-        product_name = product_name_element.get_text().strip() if product_name_element else 'Name not found'
+        product_name = None
+        if json_ld and 'name' in json_ld:
+            product_name = json_ld['name']
+        
+        if not product_name:
+            product_name_element = soup.select_one('#productTitle')
+            product_name = product_name_element.get_text().strip() if product_name_element else None
+        
+        if not product_name:
+            # Try alternative selectors
+            alt_title_selectors = ['.product-title-word-break', '.a-size-large.product-title-word-break']
+            for selector in alt_title_selectors:
+                element = soup.select_one(selector)
+                if element:
+                    product_name = element.get_text().strip()
+                    break
+        
+        if not product_name:
+            product_name = "Amazon Product"  # Fallback name
         
         # Extract product image
-        image_element = soup.select_one('#landingImage') or soup.select_one('#imgBlkFront')
-        image_url = image_element.get('src') if image_element else None
+        image_url = None
+        if json_ld and 'image' in json_ld:
+            image_url = json_ld['image'] if isinstance(json_ld['image'], str) else json_ld['image'][0]
+        
+        if not image_url:
+            image_selectors = ['#landingImage', '#imgBlkFront', '#main-image', 'img.a-dynamic-image']
+            for selector in image_selectors:
+                image_element = soup.select_one(selector)
+                if image_element and image_element.get('src'):
+                    image_url = image_element.get('src')
+                    break
+        
+        # Try to find image in image gallery
+        if not image_url:
+            # Look for image data in scripts
+            for script in soup.find_all('script'):
+                if script.string and 'ImageBlockATF' in script.string:
+                    try:
+                        # Extract image URL using regex
+                        match = re.search(r'"hiRes":"([^"]+)"', script.string)
+                        if match:
+                            image_url = match.group(1)
+                            break
+                    except:
+                        pass
         
         # Extract price
-        price_element = soup.select_one('.a-price .a-offscreen') or soup.select_one('#priceblock_ourprice') or soup.select_one('#priceblock_dealprice')
-        
-        if price_element:
-            price_text = price_element.get_text().strip()
-            # Remove currency symbol and commas, then convert to float
-            price_text = price_text.replace('₹', '').replace(',', '').replace('$', '').strip()
-            # Handle price ranges (e.g., "₹1,234 - ₹5,678")
-            if ' - ' in price_text:
-                price_text = price_text.split(' - ')[0]
-            try:
-                price = float(price_text)
-            except ValueError:
-                logger.error(f"Could not convert price text to float: {price_text}")
-                price = None
-        else:
-            price = None
-        
-        # Determine currency
+        price = None
         currency = '₹'  # Default for Amazon India
-        if price_element and price_element.get_text().strip().startswith('$'):
-            currency = '$'
+        
+        # Try to get price from JSON-LD
+        if json_ld and 'offers' in json_ld:
+            offers = json_ld['offers']
+            if isinstance(offers, dict):
+                if 'price' in offers:
+                    try:
+                        price = float(offers['price'])
+                    except (ValueError, TypeError):
+                        pass
+                if 'priceCurrency' in offers:
+                    currency = offers['priceCurrency']
+        
+        # If not found in JSON-LD, try HTML selectors
+        if price is None:
+            price_selectors = [
+                '.a-price .a-offscreen', 
+                '#priceblock_ourprice', 
+                '#priceblock_dealprice',
+                '.a-price .a-price-whole',
+                '.a-section.a-spacing-small .a-price .a-offscreen'
+            ]
             
-        return {
+            for selector in price_selectors:
+                price_element = soup.select_one(selector)
+                if price_element:
+                    price_text = price_element.get_text().strip()
+                    # Determine currency
+                    if price_text.startswith('$'):
+                        currency = '$'
+                    elif price_text.startswith('₹'):
+                        currency = '₹'
+                    elif price_text.startswith('€'):
+                        currency = '€'
+                    elif price_text.startswith('£'):
+                        currency = '£'
+                    
+                    # Remove currency symbol and commas, then convert to float
+                    price_text = re.sub(r'[^\d.]', '', price_text.replace(',', ''))
+                    # Handle price ranges (e.g., "₹1,234 - ₹5,678")
+                    if ' - ' in price_text:
+                        price_text = price_text.split(' - ')[0]
+                    try:
+                        if price_text:
+                            price = float(price_text)
+                            break
+                    except ValueError:
+                        logger.warning(f"Could not convert price text to float: {price_text}")
+        
+        # If still no price, look for it in scripts
+        if price is None:
+            for script in soup.find_all('script'):
+                if script.string and ('priceAmount' in script.string or '"price":' in script.string):
+                    try:
+                        # Try to find price using regex
+                        price_match = re.search(r'"priceAmount":(\d+\.\d+)', script.string)
+                        if price_match:
+                            price = float(price_match.group(1))
+                            break
+                            
+                        price_match = re.search(r'"price":(\d+\.\d+)', script.string)
+                        if price_match:
+                            price = float(price_match.group(1))
+                            break
+                    except:
+                        pass
+        
+        # Build the result
+        result = {
             'success': True,
             'name': product_name,
             'image_url': image_url,
             'price': price,
             'currency': currency,
-            'url': url
+            'url': normalized_url  # Use the normalized URL
         }
+        
+        # Validate result
+        if not product_name or product_name == "Amazon Product":
+            logger.warning("Could not extract proper product name")
+            if not price:
+                # If we also couldn't get price, the scraping probably failed
+                logger.error("Could not extract product name or price - scraping likely failed")
+                return {
+                    'success': False,
+                    'error': 'Could not extract essential product information. Please check the URL and try again.'
+                }
+        
+        return result
     
     except Exception as e:
-        logger.error(f"Error extracting product information: {e}")
+        logger.error(f"Error extracting product information: {e}", exc_info=True)
         return {
             'success': False,
-            'error': f'Error extracting product information: {str(e)}'
+            'error': 'Error extracting product information. Please try again with a different URL or contact support.'
         }
 
 def scrape_product(url, db, models):
@@ -253,8 +388,13 @@ def check_price_alerts(product_id, current_price, db, models):
             # Send email alert (this will be implemented in email.py)
             logger.info(f"Price alert triggered for product {product_id} - Target: {alert.target_price}, Current: {current_price}")
             
-            # TODO: Call email sending function
-            # send_price_alert_email(alert, current_price)
+            # Import and send email alert
+            from email_service import send_price_alert_email
+            
+            # Get the product
+            product = models.Product.query.get(alert.product_id)
+            if product:
+                send_price_alert_email(alert, product, current_price)
     
     except Exception as e:
         logger.error(f"Error checking price alerts: {e}")

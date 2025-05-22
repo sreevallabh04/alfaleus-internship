@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PriceChart from '../components/products/PriceChart';
@@ -13,11 +13,7 @@ const ProductDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchProductData();
-  }, [id]);
-
-  const fetchProductData = async () => {
+  const fetchProductData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -47,7 +43,11 @@ const ProductDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchProductData();
+  }, [fetchProductData]);
 
   // Calculate current price from price history
   const getCurrentPrice = () => {
