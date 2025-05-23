@@ -391,8 +391,8 @@ def check_price_alerts(product_id, current_price, db, models):
             # Import and send email alert
             from email_service import send_price_alert_email
             
-            # Get the product
-            product = models["Product"].query.get(alert.product_id)
+            # Get the product using modern SQLAlchemy method
+            product = db.session.get(models["Product"], alert.product_id)
             if product:
                 send_price_alert_email(alert, product, current_price)
     
