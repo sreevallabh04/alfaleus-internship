@@ -314,11 +314,11 @@ def scrape_product(url, db, models):
     
     try:
         # Check if product exists in database
-        product = models.Product.query.filter_by(url=url).first()
+        product = models["Product"].query.filter_by(url=url).first()
         
         if not product:
             # Create new product
-            product = models.Product(
+            product = models["Product"](
                 url=url,
                 name=result['name'],
                 image_url=result['image_url']
@@ -334,7 +334,7 @@ def scrape_product(url, db, models):
         
         if result['price']:
             # Add new price record
-            price_record = models.PriceRecord(
+            price_record = models["PriceRecord"](
                 product_id=product.id,
                 price=result['price'],
                 currency=result['currency']
@@ -373,11 +373,11 @@ def check_price_alerts(product_id, current_price, db, models):
     """
     try:
         # Find all un-triggered alerts where the current price is below the target price
-        alerts = models.PriceAlert.query.filter_by(
+        alerts = models["PriceAlert"].query.filter_by(
             product_id=product_id,
             alert_sent=False
         ).filter(
-            models.PriceAlert.target_price >= current_price
+            models["PriceAlert"].target_price >= current_price
         ).all()
         
         for alert in alerts:
@@ -392,7 +392,7 @@ def check_price_alerts(product_id, current_price, db, models):
             from email_service import send_price_alert_email
             
             # Get the product
-            product = models.Product.query.get(alert.product_id)
+            product = models["Product"].query.get(alert.product_id)
             if product:
                 send_price_alert_email(alert, product, current_price)
     

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Button } from 'react-bootstrap';
 import PriceChart from '../components/products/PriceChart';
 import PriceAlertForm from '../components/products/PriceAlertForm';
 import ComparisonTable from '../components/products/ComparisonTable';

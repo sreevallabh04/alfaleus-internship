@@ -2,9 +2,24 @@
  * CRACO (Create React App Configuration Override) configuration
  * This file overrides the default webpack configuration without ejecting
  */
+const ESLintWebpackPlugin = require('eslint-webpack-plugin');
+
 module.exports = {
   webpack: {
-    // Add webpack configuration overrides here if needed
+    // Use a simplified configuration that avoids deprecated options
+    plugins: {
+      remove: ['ESLintWebpackPlugin'],
+      add: [
+        new ESLintWebpackPlugin({
+          extensions: ['js', 'jsx', 'ts', 'tsx'],
+          eslintPath: require.resolve('eslint'),
+          context: './src',
+          cache: true,
+          emitWarning: true,
+          failOnError: false
+        })
+      ]
+    }
   },
   devServer: {
     // Modern setupMiddlewares configuration to replace deprecated options
@@ -37,7 +52,7 @@ module.exports = {
             
             // Simple HTTP request to check if backend is running
             const checkRequest = http.request({
-              host: 'localhost',
+              host: '127.0.0.1',
               port: 5000,
               path: '/api/health',
               method: 'GET',

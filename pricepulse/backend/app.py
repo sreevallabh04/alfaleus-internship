@@ -156,7 +156,7 @@ def register_routes(app):
                 scheduler.add_product(result['product_id'], url)
             
             # Get the product to return in response
-            product = Product.query.get(result['product_id'])
+            product = db.session.get(Product, result['product_id'])
             
             return jsonify({
                 'success': True,
@@ -175,7 +175,7 @@ def register_routes(app):
     def get_product(product_id):
         """Get product details by ID."""
         try:
-            product = Product.query.get(product_id)
+            product = db.session.get(Product, product_id)
             
             if not product:
                 return jsonify({
@@ -199,7 +199,7 @@ def register_routes(app):
     def get_price_history(product_id):
         """Get price history for a product."""
         try:
-            product = Product.query.get(product_id)
+            product = db.session.get(Product, product_id)
             
             if not product:
                 return jsonify({
@@ -240,7 +240,7 @@ def register_routes(app):
             target_price = float(data['target_price'])
             
             # Check if product exists
-            product = Product.query.get(product_id)
+            product = db.session.get(Product, product_id)
             if not product:
                 return jsonify({
                     'success': False,
@@ -303,7 +303,7 @@ def register_routes(app):
     def delete_product(product_id):
         """Delete a product and related data."""
         try:
-            product = Product.query.get(product_id)
+            product = db.session.get(Product, product_id)
             
             if not product:
                 return jsonify({
@@ -360,7 +360,7 @@ def register_routes(app):
     def compare_product(product_id):
         """Compare a tracked product with similar products on other platforms."""
         try:
-            product = Product.query.get(product_id)
+            product = db.session.get(Product, product_id)
             
             if not product:
                 return jsonify({
