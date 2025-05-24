@@ -18,6 +18,8 @@ interface Comparison {
   currency: string
   in_stock: boolean | null
   last_checked: string | null
+  is_genuine_match?: boolean
+  match_confidence?: number
 }
 
 interface CompareResult {
@@ -157,27 +159,41 @@ const CompareForm = ({ productUrl }: CompareFormProps) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {compareResult.comparisons.map((comparison, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {comparison.platform}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {comparison.price ? `${comparison.currency} ${comparison.price}` : "Not available"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
-                      <a href={comparison.url} target="_blank" rel="noopener noreferrer">
-                        View
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                {/* Filter to only show genuine matches (or all if none are marked as genuine) */}
+                {compareResult.comparisons
+                  .filter(comparison => {
+                    // If no comparisons have the is_genuine_match flag, show all
+                    const hasGenuineFlag = compareResult.comparisons.some(c => c.is_genuine_match !== undefined);
+                    return hasGenuineFlag ? comparison.is_genuine_match === true : true;
+                  })
+                  .map((comparison, index) => (
+                    <tr key={index} className={comparison.match_confidence && comparison.match_confidence > 0.8 ? 'bg-green-50' : ''}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <div className="flex items-center">
+                          {comparison.match_confidence && comparison.match_confidence > 0.8 && (
+                            <span className="inline-flex mr-2 items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                              Exact Match
+                            </span>
+                          )}
+                          {comparison.platform}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {comparison.price ? `${comparison.currency} ${comparison.price}` : "Not available"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        <a href={comparison.url} target="_blank" rel="noopener noreferrer">
+                          View
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Note: This is a preliminary comparison. Prices may not be exact due to variations in product models and
-            specifications.
+            Note: Only showing exact matches for the same product. We identify the exact same products using keywords from the 
+            product title and important specifications.
           </p>
         </div>
       )}
