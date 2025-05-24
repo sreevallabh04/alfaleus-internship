@@ -20,6 +20,7 @@ interface Comparison {
   last_checked: string | null
   is_genuine_match?: boolean
   match_confidence?: number
+  product_title?: string  // Add product title field
 }
 
 interface CompareResult {
@@ -180,6 +181,9 @@ const CompareForm = ({ productUrl }: CompareFormProps) => {
                           )}
                           {comparison.platform}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {comparison.product_title || "Same as Amazon"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {comparison.price ? `${comparison.currency} ${comparison.price}` : "Not available"}
