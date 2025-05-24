@@ -304,7 +304,7 @@ def scrape_amazon_product(url):
             # Method 5: Extract from dynamic price API
             if product_id and ('price' not in aggregated_data or not aggregated_data['price']):
                 logger.info("Trying to extract price from dynamic price API")
-                dynamic_price = extract_from_dynamic_price_api(product_id, session, modified_headers)
+                dynamic_price = extract_from_dynamic_price_api(product_id, session, headers)
                 if dynamic_price:
                     logger.info(f"Successfully extracted price from dynamic API: {dynamic_price}")
                     aggregated_data['price'] = dynamic_price
@@ -354,6 +354,28 @@ def scrape_amazon_product(url):
                 # Even if we're missing some data, we have a name which is critical
                 logger.info(f"Extracted product name after attempt {attempt+1}: {aggregated_data['name']}")
                 
+                # Extract key features/bullet points if not already present
+                if 'key_features' not in aggregated_data or not aggregated_data['key_features']:
+                    features = extract_key_features(soup)
+                    if features:
+                        aggregated_data['key_features'] = features
+                        logger.info(f"Extracted {len(features)} key features")
+                
+                # Make sure we have an image URL (very important for UI)
+                if 'image_url' not in aggregated_data or not aggregated_data['image_url']:
+                    logger.warning("No image URL found - trying additional methods")
+                    # Check for image in Open Graph tags as last resort
+                    og_image = soup.find('meta', {'property': 'og:image'})
+                    if og_image and 'content' in og_image.attrs:
+                        aggregated_data['image_url'] = og_image['content'].strip()
+                        logger.info("Found image URL in Open Graph tags")
+                
+                # Set price to null if not found (instead of omitting the field)
+                if 'price' not in aggregated_data:
+                    aggregated_data['price'] = None
+                    aggregated_data['currency'] = 'INR'  # Default currency
+                    logger.warning("Price data not found, setting to null")
+                
                 # Add extraction attempt information
                 aggregated_data['extraction_method'] = 'combined'
                 aggregated_data['extraction_attempts'] = attempt + 1
@@ -364,6 +386,11 @@ def scrape_amazon_product(url):
                 
                 # Add URL to the data
                 aggregated_data['url'] = url
+                
+                # Add detailed error message if partial data
+                if ('price' not in aggregated_data or not aggregated_data['price'] or 
+                    'image_url' not in aggregated_data or not aggregated_data['image_url']):
+                    aggregated_data['scraping_warning'] = "Some product data could not be extracted. Amazon may be limiting access."
                 
                 # Return the best data we have so far
                 return aggregated_data
