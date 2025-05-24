@@ -7,26 +7,65 @@ import time
 import random
 import os
 from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 from flask import current_app
 
 logger = logging.getLogger(__name__)
 
-# User agents to rotate
+# User agents to rotate - expanded list with modern browsers
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 ]
 
 def get_random_user_agent():
     """Return a random user agent from the list"""
     return random.choice(USER_AGENTS)
 
+def is_development_mode():
+    """
+    Check if the application is running in development mode
+    Used to determine when mock data is permitted (only in development)
+    """
+    try:
+        # Check Flask environment
+        flask_env = current_app.config.get('FLASK_ENV')
+        os_env = os.environ.get('FLASK_ENV')
+        testing_mode = current_app.config.get('TESTING', False)
+        
+        # Only return True if explicitly set to development
+        return flask_env == 'development' or os_env == 'development' or testing_mode
+    except Exception:
+        # If current_app is not available (outside request context)
+        return os.environ.get('FLASK_ENV') == 'development'
+
+def should_use_mock_data():
+    """
+    Determine if we should use mock data based on environment variables
+    In production, this should ALWAYS return False
+    """
+    # Check for explicit environment variable to allow mocks
+    allow_mocks = os.environ.get('ALLOW_MOCK_DATA', 'false').lower() == 'true'
+    
+    # Only allow mock data if explicitly enabled AND in development mode
+    if is_development_mode() and allow_mocks:
+        logger.warning("Mock data is allowed in development mode because ALLOW_MOCK_DATA=true")
+        return True
+    
+    # In production, NEVER use mock data
+    return False
+
 def scrape_product(url):
     """
     Scrape product information from the given URL
-    Returns a dictionary with product details or None if scraping fails
+    Returns a dictionary with product details or error information
     """
     try:
         logger.info(f"Starting scrape for URL: {url}")
@@ -36,31 +75,89 @@ def scrape_product(url):
         if custom_product_name:
             logger.info(f"Found custom product name in URL parameters: {custom_product_name}")
         
-        # For testing in development mode, check if we should use mock data
-        if is_development_mode() and should_use_mock_data():
-            logger.info("Using mock data for scraping in development mode")
-            return get_mock_product_data(url, custom_product_name=custom_product_name)
-        
         # Determine which scraper to use based on the URL
         domain = urlparse(url).netloc
-        
         logger.info(f"Detected domain: {domain}")
         
         if 'amazon' in domain:
-            result = scrape_amazon_product(url)
-            if result:
-                logger.info(f"Successfully scraped Amazon product: {result.get('name', 'Unknown')}")
-                return result
-            else:
-                logger.warning("Amazon scraping failed, using mock data as fallback")
-                return get_mock_product_data(url, custom_product_name=custom_product_name)
+            # Make multiple attempts with different scraping methods
+            for attempt in range(3):
+                logger.info(f"Amazon scraping attempt {attempt+1}/3")
+                result = scrape_amazon_product(url)
+                
+                if result and 'name' in result and result['name']:
+                    logger.info(f"Successfully scraped Amazon product: {result.get('name', 'Unknown')}")
+                    
+                    # Flag to indicate this is real data, not mock
+                    result['is_real_data'] = True
+                    
+                    # Add a timestamp
+                    result['scraped_at'] = datetime.now().isoformat()
+                    
+                    return result
+                
+                # Wait briefly between attempts
+                if attempt < 2:  # Don't sleep after last attempt
+                    time.sleep(random.uniform(1, 3))
+            
+            # All attempts failed, log an error
+            logger.error(f"All Amazon scraping attempts failed for URL: {url}")
+            
+            # For development only, use mock data if allowed
+            if is_development_mode() and should_use_mock_data():
+                logger.warning("Using mock data as fallback in development mode only")
+                mock_data = get_mock_product_data(url, custom_product_name=custom_product_name)
+                if mock_data:
+                    mock_data['is_mock_data'] = True
+                    mock_data['scraping_failed'] = True
+                    return mock_data
+            
+            # In production, return failure instead of fake data
+            return {
+                'scraping_failed': True,
+                'url': url,
+                'error': 'Failed to extract product data after multiple attempts',
+                'is_real_data': False
+            }
         else:
-            logger.warning(f"Unsupported domain: {domain}, using mock data")
-            return get_mock_product_data(url, custom_product_name=custom_product_name)
+            logger.warning(f"Unsupported domain: {domain}")
+            
+            # Only use mock data in development if explicitly allowed
+            if is_development_mode() and should_use_mock_data():
+                logger.warning("Using mock data for unsupported domain in development mode")
+                mock_data = get_mock_product_data(url, custom_product_name=custom_product_name)
+                if mock_data:
+                    mock_data['is_mock_data'] = True
+                    return mock_data
+            
+            # In production, return failure for unsupported domains
+            return {
+                'scraping_failed': True,
+                'url': url,
+                'error': f'Unsupported domain: {domain}',
+                'is_real_data': False
+            }
     except Exception as e:
-        logger.error(f"Error scraping product from {url}: {str(e)}")
-        logger.info("Returning mock data due to scraping error")
-        return get_mock_product_data(url, custom_product_name=custom_product_name)
+        error_message = str(e)
+        logger.error(f"Error scraping product from {url}: {error_message}")
+        
+        # Only use mock data in development if explicitly allowed
+        if is_development_mode() and should_use_mock_data():
+            logger.warning("Using mock data due to error in development mode only")
+            mock_data = get_mock_product_data(url, custom_product_name=custom_product_name)
+            if mock_data:
+                mock_data['is_mock_data'] = True
+                mock_data['scraping_failed'] = True
+                mock_data['error'] = error_message
+                return mock_data
+        
+        # In production, return the error information instead of fake data
+        return {
+            'scraping_failed': True,
+            'url': url,
+            'error': error_message,
+            'is_real_data': False
+        }
 
 def extract_custom_product_name(url):
     """Extract custom product name from URL parameters if available"""
@@ -77,19 +174,6 @@ def extract_custom_product_name(url):
     except Exception as e:
         logger.warning(f"Error extracting custom product name from URL: {str(e)}")
         return None
-
-def is_development_mode():
-    """Check if the application is running in development mode"""
-    try:
-        return current_app.config.get('FLASK_ENV') == 'development' or os.environ.get('FLASK_ENV') == 'development'
-    except Exception:
-        # If current_app is not available (outside request context)
-        return os.environ.get('FLASK_ENV') == 'development'
-
-def should_use_mock_data():
-    """Determine if we should use mock data based on environment variables or other factors"""
-    # For testing, we'll return True 50% of the time to simulate some successful scrapes
-    return random.random() < 0.5
 
 def get_mock_product_data(url, existing_metadata=None, custom_product_name=None):
     """
@@ -146,6 +230,7 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             mock_data['brand'] = extract_brand_from_name(mock_data.get('name', ''))
         
         logger.info(f"Generated enhanced mock data from existing metadata for: {mock_data.get('name')}")
+        mock_data['is_mock_data'] = True
         return mock_data
     
     # Try to extract a meaningful name from the URL
@@ -177,7 +262,8 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             'currency': 'INR',
             'image_url': 'https://m.media-amazon.com/images/I/71sBPpACkJL._SL1500_.jpg',
             'category': 'Health & Fitness',
-            'key_features': ['24g protein per serving', 'Muscle recovery', 'Added vitamins & minerals']
+            'key_features': ['24g protein per serving', 'Muscle recovery', 'Added vitamins & minerals'],
+            'is_mock_data': True
         }
     elif 'panasonic' in url.lower() or 'air' in url.lower() or 'conditioner' in url.lower():
         return {
@@ -188,7 +274,8 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             'currency': 'INR',
             'image_url': 'https://m.media-amazon.com/images/I/61ixP5oBSCL._SL1500_.jpg',
             'category': 'Home Appliances',
-            'key_features': ['1.5 Ton capacity', 'Wi-Fi enabled', '3 Star energy rating']
+            'key_features': ['1.5 Ton capacity', 'Wi-Fi enabled', '3 Star energy rating'],
+            'is_mock_data': True
         }
     elif 'crimson' in url.lower() or 'wallpaper' in url.lower():
         return {
@@ -199,10 +286,10 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             'currency': 'INR',
             'image_url': 'https://m.media-amazon.com/images/I/71JQ+kXfs1L._SL1500_.jpg',
             'category': 'Home Decor',
-            'key_features': ['Self-adhesive', 'Easy to apply', 'Peach Blossom design']
+            'key_features': ['Self-adhesive', 'Easy to apply', 'Peach Blossom design'],
+            'is_mock_data': True
         }
     else:
-        # Never use generic "Amazon Product" - extract meaningful info from URL
         # Extract product ID and potential keywords
         product_id = None
         url_keywords = []
@@ -489,129 +576,242 @@ def generate_features(name):
     return ['High quality', 'Durable construction', 'Excellent value']
 
 def scrape_amazon_product(url):
-    """Scrape product information from Amazon"""
+    """
+    Scrape product information from Amazon with multiple methods and high resilience
+    Never returns mock data - either returns real scraped data or fails with informative error
+    """
     logger.info(f"Starting Amazon scraping for: {url}")
+    
+    # Store the product ID for validation
+    product_id = None
+    url_path = urlparse(url).path
+    
+    # Extract product ID from URL (typically starts with B0)
+    if '/dp/' in url or '/gp/product/' in url:
+        for segment in url_path.split('/'):
+            if segment.startswith('B0') and len(segment) >= 10:
+                product_id = segment
+                logger.info(f"Extracted product ID from URL: {product_id}")
+                break
+    
+    # Prepare headers with extensive browser-like properties
     headers = {
         'User-Agent': get_random_user_agent(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0'
+        'Cache-Control': 'max-age=0',
+        'Sec-Ch-Ua': '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Pragma': 'no-cache',
+        'Priority': 'u=0, i'
     }
     
-    # Make multiple attempts with different user agents
-    max_attempts = 3
+    # Increased number of attempts for production reliability
+    max_attempts = 5
+    aggregated_data = {}
+    
     for attempt in range(max_attempts):
         try:
-            # Use a different user agent for each attempt
+            # Use a different user agent and headers for each attempt
             headers['User-Agent'] = get_random_user_agent()
             
-            # Add delay to avoid being blocked (longer delay for repeated attempts)
-            time.sleep(random.uniform(1, 2 + attempt))
+            # Add random cookies and referrers to appear more like a real browser
+            if attempt > 1:
+                if random.random() > 0.5:
+                    headers['Referer'] = 'https://www.google.com/'
+                else:
+                    headers['Referer'] = 'https://www.amazon.in/'
+                    
+                # Add some cookies
+                headers['Cookie'] = f'session-id={random.randint(100000000, 999999999)}; session-token=random{random.randint(10000, 99999)}'
             
-            logger.info(f"Sending request to Amazon (attempt {attempt+1}/{max_attempts}) with timeout of 15 seconds")
-            response = requests.get(url, headers=headers, timeout=15)
+            # Progressive delay strategy to avoid blocks
+            delay = random.uniform(1, 2 + attempt * 0.5)
+            logger.info(f"Waiting {delay:.2f} seconds before attempt {attempt+1}/{max_attempts}")
+            time.sleep(delay)
+            
+            # Increase timeout for later attempts
+            timeout = 15 + (attempt * 5)
+            logger.info(f"Sending request to Amazon (attempt {attempt+1}/{max_attempts}) with timeout of {timeout} seconds")
+            
+            # Use session for better connection reuse
+            session = requests.Session()
+            response = session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
+            
+            # Check if we got a captcha or other block
+            if 'captcha' in response.text.lower() or 'robot' in response.text.lower():
+                logger.warning(f"Detected captcha/bot protection on attempt {attempt+1}")
+                continue
+                
+            # Save the response for debugging in case of issues
+            if attempt == 0:
+                with open('amazon_response_debug.html', 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+                logger.info("Saved response HTML for debugging")
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Try multiple methods to extract product information
-            product_data = {}
-            
             # Method 1: Extract from JSON-LD (most reliable)
             logger.info("Trying to extract data from JSON-LD")
-            product_data = extract_from_json_ld(soup)
-            if product_data and 'name' in product_data:
-                logger.info(f"Successfully extracted product name from JSON-LD: {product_data['name']}")
-                return product_data
+            json_ld_data = extract_from_json_ld(soup)
+            if json_ld_data and 'name' in json_ld_data:
+                logger.info(f"Successfully extracted product name from JSON-LD: {json_ld_data['name']}")
+                # Merge with aggregated data, prioritizing JSON-LD
+                aggregated_data.update(json_ld_data)
+                
+                # If we have both name and price, we can return early
+                if 'name' in aggregated_data and 'price' in aggregated_data:
+                    aggregated_data['extraction_method'] = 'json_ld'
+                    return aggregated_data
             
             # Method 2: Extract from HTML elements
             logger.info("Trying to extract data from HTML elements")
-            product_data = extract_from_html_elements(soup)
-            if product_data and 'name' in product_data:
-                logger.info(f"Successfully extracted product name from HTML: {product_data['name']}")
-                return product_data
+            html_data = extract_from_html_elements(soup)
+            if html_data:
+                logger.info(f"Extracted data from HTML elements: {', '.join(html_data.keys())}")
+                # Add any new fields from HTML extraction
+                for key, value in html_data.items():
+                    if key not in aggregated_data or not aggregated_data[key]:
+                        aggregated_data[key] = value
+                
+                # If we now have both name and price, we can return
+                if 'name' in aggregated_data and 'price' in aggregated_data:
+                    aggregated_data['extraction_method'] = 'html_elements'
+                    return aggregated_data
             
             # Method 3: Extract from meta tags
             logger.info("Trying to extract data from meta tags")
-            product_data = extract_from_meta_tags(soup)
-            if product_data and 'name' in product_data:
-                logger.info(f"Successfully extracted product name from meta tags: {product_data['name']}")
-                return product_data
+            meta_data = extract_from_meta_tags(soup)
+            if meta_data:
+                logger.info(f"Extracted data from meta tags: {', '.join(meta_data.keys())}")
+                # Add any new fields from meta extraction
+                for key, value in meta_data.items():
+                    if key not in aggregated_data or not aggregated_data[key]:
+                        aggregated_data[key] = value
+                
+                # If we now have both name and price, we can return
+                if 'name' in aggregated_data and 'price' in aggregated_data:
+                    aggregated_data['extraction_method'] = 'meta_tags'
+                    return aggregated_data
             
-            # Method 4: Extract from title tag
+            # Method 4: Extract from title tag as last resort
             logger.info("Trying to extract data from page title")
             title_tag = soup.title
             if title_tag and title_tag.string:
                 title_text = title_tag.string.strip()
                 # Remove common Amazon title suffixes
-                for suffix in [" | Amazon.in", " | Amazon.com", " - Amazon"]:
+                for suffix in [" | Amazon.in", " | Amazon.com", " - Amazon", "Amazon.in", "Amazon.com"]:
                     if title_text.endswith(suffix):
-                        title_text = title_text[:-len(suffix)]
+                        title_text = title_text[:-len(suffix)].strip()
                 
                 if title_text and len(title_text) > 5:
                     logger.info(f"Extracted product name from title: {title_text}")
-                    if not product_data:
-                        product_data = {}
-                    product_data['name'] = title_text
-                    product_data['description'] = title_text
+                    
+                    # Only use title if we don't already have a name
+                    if 'name' not in aggregated_data or not aggregated_data['name']:
+                        aggregated_data['name'] = title_text
+                    
+                    if 'description' not in aggregated_data:
+                        aggregated_data['description'] = title_text
                     
                     # Try to extract price if not already present
-                    price_text = soup.find(text=re.compile(r'₹|₨|Rs\.?\s*\d+|\d+\.?\d*'))
-                    if price_text:
-                        price_match = re.search(r'\d+(?:,\d+)*(?:\.\d+)?', price_text)
-                        if price_match:
-                            try:
-                                price = float(price_match.group().replace(',', ''))
-                                product_data['price'] = price
-                                product_data['currency'] = 'INR'
-                            except ValueError:
-                                pass
-                    
-                    return product_data
+                    if 'price' not in aggregated_data:
+                        price_elements = soup.find_all(text=re.compile(r'₹|₨|Rs\.?\s*\d+|\$\s*\d+|\d+\.?\d*'))
+                        for price_text in price_elements:
+                            price_match = re.search(r'\d+(?:,\d+)*(?:\.\d+)?', price_text)
+                            if price_match:
+                                try:
+                                    price_str = price_match.group().replace(',', '')
+                                    price = float(price_str)
+                                    # Sanity check - price must be reasonable
+                                    if 10 <= price <= 500000:  # Reasonable price range in INR
+                                        aggregated_data['price'] = price
+                                        aggregated_data['currency'] = 'INR' if '₹' in price_text or 'Rs' in price_text else 'USD'
+                                        break
+                                except ValueError:
+                                    continue
             
-            # If we're on the last attempt and still couldn't extract data, log a warning
-            if attempt == max_attempts - 1:
-                logger.warning(f"Failed to extract complete product data from {url} - Name: {product_data.get('name', 'Missing')}, Price: {product_data.get('price', 'Missing')}")
+            # Check if we have sufficient data after this attempt
+            if 'name' in aggregated_data:
+                # Even if we're missing some data, we have a name which is critical
+                logger.info(f"Extracted product name after attempt {attempt+1}: {aggregated_data['name']}")
                 
-                # Return partial data if available rather than None
-                if product_data:
-                    logger.info("Returning partial product data")
-                    
-                    # Ensure we have at least a name, even if we have to extract it from the URL
-                    if 'name' not in product_data or not product_data['name']:
-                        extracted_name = extract_name_from_url(url)
-                        if extracted_name:
-                            product_data['name'] = extracted_name
-                            logger.info(f"Added name from URL extraction: {extracted_name}")
-                    
-                    return product_data
+                # Add extraction attempt information
+                aggregated_data['extraction_method'] = 'combined'
+                aggregated_data['extraction_attempts'] = attempt + 1
+                
+                # If we have the product ID from the URL, add it for verification
+                if product_id:
+                    aggregated_data['product_id'] = product_id
+                
+                # Add URL to the data
+                aggregated_data['url'] = url
+                
+                # Return the best data we have so far
+                return aggregated_data
         
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error on attempt {attempt+1}/{max_attempts}: {str(e)}")
-            if attempt == max_attempts - 1:
-                break
+            # Don't break, try a different strategy on next attempt
         except Exception as e:
             logger.error(f"Error on attempt {attempt+1}/{max_attempts}: {str(e)}")
-            if attempt == max_attempts - 1:
+            # Don't break, try a different strategy on next attempt
+    
+    # After all attempts failed, check if we've collected any useful data
+    if aggregated_data and 'name' in aggregated_data:
+        logger.warning("All direct scraping attempts had issues, but we collected partial data")
+        
+        # Add URL to the data
+        aggregated_data['url'] = url
+        aggregated_data['partial_data'] = True
+        
+        return aggregated_data
+    
+    # Last resort: Try to extract meaningful info directly from the URL
+    logger.warning("All scraping attempts failed, extracting from URL as last resort")
+    
+    # Get product ID if we didn't extract it earlier
+    if not product_id:
+        for segment in url_path.split('/'):
+            if segment.startswith('B0') and len(segment) >= 10:
+                product_id = segment
                 break
     
-    # After all attempts failed, try to extract meaningful info from the URL
-    logger.warning("All scraping attempts failed, extracting from URL")
+    # Extract a meaningful name from URL components
     url_name = extract_name_from_url(url)
+    
     if url_name:
         logger.info(f"Extracted name from URL: {url_name}")
-        return {
+        result = {
             'name': url_name,
             'description': f"Product details for {url_name}",
             'url': url,
-            'is_extracted_from_url': True  # Flag to indicate this is URL-extracted data
+            'is_url_extracted': True,  # Flag to indicate this is URL-extracted data
+            'extraction_method': 'url_fallback'
         }
+        
+        if product_id:
+            result['product_id'] = product_id
+            
+        return result
     
-    # Only return None if we absolutely couldn't extract anything
-    logger.warning("Could not extract any meaningful information from URL")
-    return None
+    # If we get here, we've exhausted all options and failed to get meaningful data
+    logger.error(f"Complete failure to extract any product data from {url}")
+    return {
+        'scraping_failed': True,
+        'url': url,
+        'error': 'Failed to extract any product data after multiple methods',
+        'is_real_data': False
+    }
 
 def extract_from_json_ld(soup):
     """Extract product information from JSON-LD script tags"""
@@ -680,12 +880,16 @@ def extract_from_html_elements(soup):
     if name_element:
         product['name'] = name_element.text.strip()
     
-    # Extract product price
+    # Extract product price - expanded selectors for Amazon
     price_elements = [
         soup.select_one('#priceblock_ourprice'),
         soup.select_one('#priceblock_dealprice'),
         soup.select_one('.a-price .a-offscreen'),
-        soup.select_one('.a-price')
+        soup.select_one('.a-price'),
+        soup.select_one('#corePrice_feature_div .a-offscreen'),
+        soup.select_one('.a-price-whole'),
+        soup.select_one('#price'),
+        soup.select_one('.price-large')
     ]
     
     for element in price_elements:
@@ -699,17 +903,60 @@ def extract_from_html_elements(soup):
                 except (ValueError, AttributeError):
                     continue
     
-    # Extract product image
-    image_element = soup.select_one('#landingImage') or soup.select_one('#imgBlkFront')
-    if image_element and 'data-old-hires' in image_element.attrs:
-        product['image_url'] = image_element['data-old-hires']
-    elif image_element and 'src' in image_element.attrs:
-        product['image_url'] = image_element['src']
+    # Extract product image - expanded selectors
+    image_selectors = [
+        '#landingImage',
+        '#imgBlkFront',
+        '#main-image',
+        '.a-dynamic-image',
+        '#main-image-container img',
+        '#imageBlock img',
+        '#img-canvas img'
+    ]
+    
+    for selector in image_selectors:
+        image_element = soup.select_one(selector)
+        if image_element:
+            if 'data-old-hires' in image_element.attrs:
+                product['image_url'] = image_element['data-old-hires']
+                break
+            elif 'src' in image_element.attrs:
+                product['image_url'] = image_element['src']
+                break
     
     # Extract product description
-    description_element = soup.select_one('#productDescription')
-    if description_element:
-        product['description'] = description_element.text.strip()
+    description_selectors = [
+        '#productDescription',
+        '#feature-bullets',
+        '.product-description',
+        '#aplus',
+        '.aplus-v2'
+    ]
+    
+    for selector in description_selectors:
+        description_element = soup.select_one(selector)
+        if description_element:
+            product['description'] = description_element.text.strip()
+            break
+    
+    # Extract brand
+    brand_selectors = [
+        '.po-brand .a-span9',
+        '#bylineInfo',
+        '.a-link-normal[href*=brand]',
+        '.po-brand .a-section'
+    ]
+    
+    for selector in brand_selectors:
+        brand_element = soup.select_one(selector)
+        if brand_element:
+            brand_text = brand_element.text.strip()
+            brand_match = re.search(r'Brand:\s*([^\n]+)', brand_text)
+            if brand_match:
+                product['brand'] = brand_match.group(1).strip()
+            else:
+                product['brand'] = brand_text.replace('Brand:', '').replace('Visit the', '').replace('Store', '').strip()
+            break
     
     # Extract currency
     if 'price' in product:
