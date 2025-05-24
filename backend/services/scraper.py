@@ -422,6 +422,210 @@ def scrape_amazon_product(url):
         'is_real_data': False
     }
 
+def get_enhanced_headers():
+    """
+    Generate enhanced headers with browser fingerprinting for better Amazon scraping
+    """
+    cookies = {
+        'session-id': f"{random.randint(100000000, 999999999)}",
+        'session-token': f"random{random.randint(10000, 99999)}",
+        'ubid-acbin': f"{random.randint(250, 300)}-{random.randint(1000000, 9999999)}-{random.randint(1000000, 9999999)}",
+        'csm-hit': f"tb:{random.randint(10000000000000000000, 99999999999999999999)}+s-{random.randint(10000000000000000000, 99999999999999999999)}|{int(time.time()*1000)}",
+    }
+    
+    headers = {
+        'User-Agent': get_random_user_agent(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+        'Sec-Ch-Ua': '"Chromium";v="124", "Not)A;Brand";v="24", "Google Chrome";v="124"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Pragma': 'no-cache',
+        'Priority': 'u=0, i',
+        'Dnt': '1',
+        'Cookie': '; '.join([f"{k}={v}" for k, v in cookies.items()])
+    }
+    
+    return headers
+
+def extract_from_price_data_script(soup, product_id):
+    """
+    Extract product price from Amazon's price data script
+    This is often found in a script containing pricing data
+    """
+    try:
+        price_data = {}
+        
+        # Look for price data in scripts
+        for script in soup.find_all('script'):
+            script_text = script.string
+            if not script_text:
+                continue
+                
+            # Check for price data patterns
+            if 'priceData' in script_text or 'aodPreredirect' in script_text:
+                logger.info("Found price data script")
+                
+                # Try to extract price
+                price_match = re.search(r'"displayPrice":\s*"([^"]+)"', script_text)
+                if price_match:
+                    price_text = price_match.group(1)
+                    # Extract numeric price
+                    price_value_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    if price_value_match:
+                        try:
+                            price_str = price_value_match.group().replace(',', '')
+                            price_data['price'] = float(price_str)
+                            price_data['currency'] = 'INR' if '₹' in price_text or 'Rs' in price_text else 'USD'
+                            logger.info(f"Extracted price from price data script: {price_data['price']} {price_data['currency']}")
+                        except (ValueError, AttributeError) as e:
+                            logger.warning(f"Error parsing price from script: {str(e)}")
+                
+                # Try to extract product title
+                title_match = re.search(r'"productTitle":\s*"([^"]+)"', script_text)
+                if title_match:
+                    price_data['name'] = title_match.group(1)
+                    logger.info(f"Extracted title from price data script: {price_data['name']}")
+                
+                # Try to extract image URL
+                image_match = re.search(r'"imageUrl":\s*"([^"]+)"', script_text)
+                if image_match:
+                    price_data['image_url'] = image_match.group(1)
+                    logger.info(f"Extracted image URL from price data script")
+                
+                # If we found something useful, return it
+                if price_data:
+                    return price_data
+            
+            # Check for another format of price data
+            if 'twister-js-init-dpx-data' in script_text:
+                logger.info("Found twister data script")
+                
+                # Try to extract ASIN-specific data if product_id is provided
+                if product_id:
+                    asin_data_match = re.search(rf'"{product_id}":\s*(\{{[^{{}}]*\}})', script_text)
+                    if asin_data_match:
+                        try:
+                            # This is often malformed JSON, so we need to clean it up
+                            asin_data_text = asin_data_match.group(1)
+                            # Add quotes around keys to make it valid JSON
+                            asin_data_text = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', asin_data_text)
+                            asin_data = json.loads(asin_data_text)
+                            
+                            if 'price' in asin_data:
+                                price_text = asin_data['price']
+                                # Extract numeric price
+                                price_value_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                                if price_value_match:
+                                    price_str = price_value_match.group().replace(',', '')
+                                    price_data['price'] = float(price_str)
+                                    price_data['currency'] = 'INR' if '₹' in price_text or 'Rs' in price_text else 'USD'
+                                    logger.info(f"Extracted price from twister data: {price_data['price']} {price_data['currency']}")
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.warning(f"Error parsing twister data: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error extracting from price data script: {str(e)}")
+    
+    return price_data
+
+def extract_from_dynamic_price_api(product_id, session, headers):
+    """
+    Extract price from Amazon's dynamic price API
+    This makes a separate request to Amazon's price API
+    """
+    if not product_id:
+        return None
+        
+    try:
+        # Use different API URLs
+        api_urls = [
+            f"https://www.amazon.in/gp/product/ajax/ref=dp_aod_unknown_mbc?asin={product_id}&m=&qid=&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=&pc=dp",
+            f"https://www.amazon.in/gp/aod/ajax/ref=aod_page_1?asin={product_id}&pc=dp"
+        ]
+        
+        for api_url in api_urls:
+            try:
+                logger.info(f"Trying dynamic price API: {api_url}")
+                
+                # Add specific headers for AJAX request
+                ajax_headers = headers.copy() if headers else get_enhanced_headers()
+                ajax_headers['X-Requested-With'] = 'XMLHttpRequest'
+                ajax_headers['Referer'] = f"https://www.amazon.in/dp/{product_id}"
+                
+                response = session.get(api_url, headers=ajax_headers, timeout=10)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Extract price from the API response
+                    price_elements = soup.select('.a-price .a-offscreen, .a-color-price, .a-price')
+                    for element in price_elements:
+                        price_text = element.text.strip()
+                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                        if price_match:
+                            try:
+                                price_str = price_match.group().replace(',', '')
+                                price = float(price_str)
+                                # Sanity check - price must be reasonable
+                                if 10 <= price <= 500000:  # Reasonable price range in INR
+                                    logger.info(f"Successfully extracted price from dynamic API: {price}")
+                                    return price
+                            except (ValueError, AttributeError):
+                                continue
+            except Exception as e:
+                logger.warning(f"Error with dynamic price API URL {api_url}: {str(e)}")
+                continue
+    except Exception as e:
+        logger.error(f"Error extracting from dynamic price API: {str(e)}")
+    
+    return None
+
+def extract_key_features(soup):
+    """
+    Extract key features (bullet points) from Amazon product page
+    """
+    features = []
+    try:
+        # Try multiple selectors for feature bullets
+        bullet_selectors = [
+            '#feature-bullets ul li:not(.aok-hidden) span.a-list-item',
+            '#feature-bullets .a-unordered-list .a-list-item',
+            '.a-unordered-list .a-list-item:not(.aok-hidden)',
+            '.feature-bullets .a-list-item'
+        ]
+        
+        for selector in bullet_selectors:
+            bullet_elements = soup.select(selector)
+            if bullet_elements:
+                for element in bullet_elements:
+                    feature_text = element.text.strip()
+                    # Skip empty features or known non-feature text
+                    if (feature_text and 
+                        len(feature_text) > 5 and 
+                        not feature_text.startswith('Make sure') and
+                        not 'this fits' in feature_text.lower()):
+                        features.append(feature_text)
+                
+                # If we found some features, no need to try other selectors
+                if features:
+                    break
+        
+        # Limit to a reasonable number of features
+        if len(features) > 5:
+            features = features[:5]
+            
+        return features
+    except Exception as e:
+        logger.error(f"Error extracting key features: {str(e)}")
+        return []
+
 def extract_from_json_ld(soup):
     """Extract product information from JSON-LD script tags"""
     try:
