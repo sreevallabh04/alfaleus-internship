@@ -58,14 +58,25 @@ def compare_prices():
         
         logger.info(f"Found {len(comparisons)} platform comparisons")
         
-        # If no comparisons were found or we're in development mode with specific test conditions
-        if not comparisons or (is_development_mode() and should_generate_mock_comparisons()):
-            logger.warning("No comparisons found or in development mode, generating mock comparison data")
-            
-            # Use the actual metadata for generating relevant mock comparisons
-            comparisons = generate_mock_comparisons(metadata)
-            
-            logger.info(f"Generated {len(comparisons)} mock platform comparisons based on product: {metadata.get('name')}")
+        # Only use mock data if specifically requested or if no real comparisons found in development mode
+        if not comparisons:
+            if is_development_mode() and should_generate_mock_comparisons():
+                logger.warning("No comparisons found and mock data requested, generating mock comparison data")
+                
+                # Use the actual metadata for generating relevant mock comparisons
+                comparisons = generate_mock_comparisons(metadata)
+                
+                logger.info(f"Generated {len(comparisons)} mock platform comparisons based on product: {metadata.get('name')}")
+                
+                # Clearly mark this as mock data in the response
+                return jsonify({
+                    'success': True,
+                    'metadata': metadata,
+                    'comparisons': comparisons,
+                    'is_mock_data': True
+                }), 200
+            else:
+                logger.info("No comparisons found and mock data not requested")
         
         return jsonify({
             'success': True,
@@ -80,6 +91,7 @@ def compare_prices():
             'message': 'Failed to compare prices. Please try again.',
             'error': str(e)
         }), 500
+
 def is_development_mode():
     """Check if the application is running in development mode"""
     try:
@@ -89,8 +101,9 @@ def is_development_mode():
 
 def should_generate_mock_comparisons():
     """Determine if we should generate mock comparison data"""
-    # In some cases, even if we have real comparisons, we might want to add mock data for testing
-    return random.random() < 0.3  # 30% chance of using mock data for testing
+    # Only generate mock data if specifically requested via a URL parameter
+    mock_param = request.args.get('mock', 'false').lower() == 'true'
+    return mock_param
 
 def generate_mock_comparisons(metadata):
     """
@@ -172,7 +185,9 @@ def generate_mock_comparisons(metadata):
             'price': varied_price if in_stock else None,
             'currency': metadata.get('currency', 'INR'),
             'in_stock': in_stock,
-            'last_checked': timestamp
+            'last_checked': timestamp,
+            'is_genuine_match': False,  # Mark mock data as not genuine matches
+            'match_confidence': 0.5  # Medium-low confidence for mock data
         })
     
     # Ensure at least one platform has a better price
