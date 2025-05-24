@@ -6,7 +6,7 @@ import logging
 import time
 import random
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -31,10 +31,15 @@ def scrape_product(url):
     try:
         logger.info(f"Starting scrape for URL: {url}")
         
+        # Extract user-provided product name from URL parameters if available
+        custom_product_name = extract_custom_product_name(url)
+        if custom_product_name:
+            logger.info(f"Found custom product name in URL parameters: {custom_product_name}")
+        
         # For testing in development mode, check if we should use mock data
         if is_development_mode() and should_use_mock_data():
             logger.info("Using mock data for scraping in development mode")
-            return get_mock_product_data(url)
+            return get_mock_product_data(url, custom_product_name=custom_product_name)
         
         # Determine which scraper to use based on the URL
         domain = urlparse(url).netloc
@@ -48,14 +53,30 @@ def scrape_product(url):
                 return result
             else:
                 logger.warning("Amazon scraping failed, using mock data as fallback")
-                return get_mock_product_data(url)
+                return get_mock_product_data(url, custom_product_name=custom_product_name)
         else:
             logger.warning(f"Unsupported domain: {domain}, using mock data")
-            return get_mock_product_data(url)
+            return get_mock_product_data(url, custom_product_name=custom_product_name)
     except Exception as e:
         logger.error(f"Error scraping product from {url}: {str(e)}")
         logger.info("Returning mock data due to scraping error")
-        return get_mock_product_data(url)
+        return get_mock_product_data(url, custom_product_name=custom_product_name)
+
+def extract_custom_product_name(url):
+    """Extract custom product name from URL parameters if available"""
+    try:
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        
+        # Check for common parameter names that might contain product name
+        for param in ['product_name', 'name', 'title', 'product']:
+            if param in query_params and query_params[param]:
+                return query_params[param][0]
+        
+        return None
+    except Exception as e:
+        logger.warning(f"Error extracting custom product name from URL: {str(e)}")
+        return None
 
 def is_development_mode():
     """Check if the application is running in development mode"""
@@ -70,7 +91,7 @@ def should_use_mock_data():
     # For testing, we'll return True 50% of the time to simulate some successful scrapes
     return random.random() < 0.5
 
-def get_mock_product_data(url, existing_metadata=None):
+def get_mock_product_data(url, existing_metadata=None, custom_product_name=None):
     """
     Generate mock product data for testing purposes
     This ensures the application can function even when scraping fails
@@ -78,10 +99,27 @@ def get_mock_product_data(url, existing_metadata=None):
     Args:
         url (str): The URL from which we tried to scrape
         existing_metadata (dict, optional): Any metadata that was already extracted
+        custom_product_name (str, optional): User-provided product name
     """
     logger.info(f"Generating mock data for URL: {url}")
-    if existing_metadata:
-        logger.info(f"Using existing metadata as base: {existing_metadata.get('name', 'N/A')}")
+    
+    # If user provided a custom product name, use it
+    if custom_product_name:
+        logger.info(f"Using custom product name: {custom_product_name}")
+        name = custom_product_name
+        brand = extract_brand_from_name(name)
+        
+        return {
+            'name': name,
+            'brand': brand,
+            'description': generate_description(name),
+            'price': generate_realistic_price(name),
+            'currency': 'INR',
+            'image_url': 'https://via.placeholder.com/500',
+            'category': guess_category(name),
+            'key_features': generate_features(name),
+            'is_mock_data': True  # Flag to indicate this is mock data
+        }
     
     # If we already have metadata, use it as a base for our mock data
     if existing_metadata and isinstance(existing_metadata, dict):
@@ -110,13 +148,24 @@ def get_mock_product_data(url, existing_metadata=None):
         logger.info(f"Generated enhanced mock data from existing metadata for: {mock_data.get('name')}")
         return mock_data
     
-    # Extract a product ID or name from the URL if possible
-    product_id = "unknown"
-    url_parts = url.split('/')
-    for part in url_parts:
-        if part.startswith('B0') and len(part) >= 10:
-            product_id = part
-            break
+    # Try to extract a meaningful name from the URL
+    url_name = extract_name_from_url(url)
+    if url_name:
+        logger.info(f"Extracted product name from URL: {url_name}")
+        name = url_name
+        brand = extract_brand_from_name(name)
+        
+        return {
+            'name': name,
+            'brand': brand,
+            'description': generate_description(name),
+            'price': generate_realistic_price(name),
+            'currency': 'INR',
+            'image_url': 'https://via.placeholder.com/500',
+            'category': guess_category(name),
+            'key_features': generate_features(name),
+            'is_mock_data': True  # Flag to indicate this is mock data
+        }
     
     # Use different mock data based on the URL to simulate variety
     if 'nutrabay' in url.lower() or 'protein' in url.lower():
@@ -153,37 +202,31 @@ def get_mock_product_data(url, existing_metadata=None):
             'key_features': ['Self-adhesive', 'Easy to apply', 'Peach Blossom design']
         }
     else:
-        # Extract a more specific name from URL instead of using generic "Sample Product"
-        url_name = extract_name_from_url(url)
-        
         # If we couldn't extract a name from URL, create a more descriptive one based on domain
-        if not url_name:
-            domain = urlparse(url).netloc
-            domain_parts = domain.split('.')
-            site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
-            category = "Product"
-            
-            # Determine category from URL
-            url_lower = url.lower()
-            if 'phone' in url_lower or 'mobile' in url_lower or 'smartphone' in url_lower:
-                category = "Smartphone"
-            elif 'laptop' in url_lower or 'notebook' in url_lower:
-                category = "Laptop"
-            elif 'tv' in url_lower or 'television' in url_lower:
-                category = "Television"
-            elif 'watch' in url_lower or 'wearable' in url_lower:
-                category = "Smartwatch"
-            elif 'headphone' in url_lower or 'earphone' in url_lower or 'earbud' in url_lower:
-                category = "Headphones"
-            elif 'camera' in url_lower:
-                category = "Camera"
-            elif 'speaker' in url_lower or 'audio' in url_lower:
-                category = "Speaker"
-            
-            name = f"{site_name.capitalize()} {category} {product_id[-4:]}"
-        else:
-            name = url_name
-            
+        domain = urlparse(url).netloc
+        domain_parts = domain.split('.')
+        site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
+        category = "Product"
+        
+        # Determine category from URL
+        url_lower = url.lower()
+        if 'phone' in url_lower or 'mobile' in url_lower or 'smartphone' in url_lower:
+            category = "Smartphone"
+        elif 'laptop' in url_lower or 'notebook' in url_lower:
+            category = "Laptop"
+        elif 'tv' in url_lower or 'television' in url_lower:
+            category = "Television"
+        elif 'watch' in url_lower or 'wearable' in url_lower:
+            category = "Smartwatch"
+        elif 'headphone' in url_lower or 'earphone' in url_lower or 'earbud' in url_lower:
+            category = "Headphones"
+        elif 'camera' in url_lower:
+            category = "Camera"
+        elif 'speaker' in url_lower or 'audio' in url_lower:
+            category = "Speaker"
+        
+        # Don't include product ID in the name
+        name = f"{category} from {site_name.capitalize()}"
         brand = extract_brand_from_name(name)
         
         return {
@@ -194,13 +237,14 @@ def get_mock_product_data(url, existing_metadata=None):
             'currency': 'INR',
             'image_url': 'https://via.placeholder.com/500',
             'category': guess_category(name),
-            'key_features': generate_features(name)
+            'key_features': generate_features(name),
+            'is_mock_data': True  # Flag to indicate this is mock data
         }
 
 def extract_name_from_url(url):
     """Extract a product name from URL"""
     if not url:
-        return None
+        return "Generic Product"
         
     # Remove URL parameters
     clean_url = url.split('?')[0]
@@ -256,6 +300,33 @@ def extract_name_from_url(url):
                         if len(words) >= 2:
                             product_name = ' '.join([w.capitalize() for w in words if len(w) > 1])
                             break
+    
+    # If we still don't have a product name, use a more descriptive generic name
+    if not product_name:
+        # Determine the domain
+        domain = urlparse(url).netloc
+        domain_parts = domain.split('.')
+        site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
+        
+        # Try to extract a category from the URL
+        url_lower = url.lower()
+        category = "Item"
+        
+        if 'phone' in url_lower or 'mobile' in url_lower:
+            category = "Smartphone"
+        elif 'laptop' in url_lower:
+            category = "Laptop"
+        elif 'tv' in url_lower:
+            category = "Television"
+        elif 'watch' in url_lower:
+            category = "Watch"
+        elif 'headphone' in url_lower or 'earphone' in url_lower:
+            category = "Headphones"
+        elif 'camera' in url_lower:
+            category = "Camera"
+        
+        # Don't include the product ID in the name
+        product_name = f"{category} from {site_name.capitalize()}"
     
     return product_name
 
