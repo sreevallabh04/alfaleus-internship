@@ -329,31 +329,32 @@ def extract_brand_from_name(name):
 
 def search_other_platforms(metadata):
     """
-    Search for the product on other platforms using Groq AI
-    Returns a list of dictionaries with platform, url, price, etc.
+    Search for the exact same or equivalent product on other Indian e-commerce platforms.
+    Returns a list of dictionaries with website, product_title, price, and url.
     """
     if not metadata or 'name' not in metadata:
         logger.error("Invalid metadata for product comparison")
         return []
     
-    # Define the platforms we want to search
-    platforms = ['Flipkart', 'Meesho', 'BigBasket', 'Swiggy Instamart']
+    # Define the Indian e-commerce platforms we want to search
+    platforms = ['Flipkart', 'Snapdeal', 'Reliance Digital', 'Tata Cliq', 'Croma']
     
-    # Extract product name and ensure it's complete
+    # Extract product details for search context
     product_name = metadata.get('name', '')
+    product_brand = metadata.get('brand', '')
+    product_model = metadata.get('model', '')
+    product_features = metadata.get('key_features', [])
+    product_price = metadata.get('price')
+    
     if not product_name:
         logger.error("Missing product name for comparison search")
         return []
-        
-    # Extract brand and model for better search precision
-    product_brand = metadata.get('brand', '')
-    product_model = metadata.get('model', '')
     
-    # Extract keywords from the product title
+    # Extract keywords from the product title for better matching
     keywords = extract_keywords_from_title(product_name, product_brand, product_model)
     logger.info(f"Extracted keywords for search: {keywords}")
     
-    # Create search query with brand + model + keywords for better results
+    # Create optimized search query with brand + model + keywords
     search_query = product_name
     
     # If brand isn't in the name, prepend it
@@ -366,39 +367,60 @@ def search_other_platforms(metadata):
     
     logger.info(f"Using optimized search query for comparison: {search_query}")
     
-    # Basic search URLs for each platform with full product name
+    # Basic search URLs for each platform
     platform_urls = {
         'Flipkart': f"https://www.flipkart.com/search?q={search_query}",
-        'Meesho': f"https://www.meesho.com/search?q={search_query}",
-        'BigBasket': f"https://www.bigbasket.com/ps/?q={search_query}",
-        'Swiggy Instamart': f"https://www.swiggy.com/search?query={search_query}"
+        'Snapdeal': f"https://www.snapdeal.com/search?keyword={search_query}",
+        'Reliance Digital': f"https://www.reliancedigital.in/search?q={search_query}",
+        'Tata Cliq': f"https://www.tatacliq.com/search/?searchCategory=all&text={search_query}",
+        'Croma': f"https://www.croma.com/searchB?q={search_query}"
     }
     
-    # Create a function to check if a product match is genuine based on keywords
-    def is_genuine_match(product_info):
+    # Function to check if a product match is genuine based on keywords
+    def is_genuine_match(match_title, original_title, brand, model):
         """
-        Check if a product match is genuine by comparing keywords
+        Check if a product match is genuine by comparing key attributes
         Returns True if it's a genuine match, False otherwise
         """
-        if not product_info or 'name' not in product_info:
+        if not match_title:
             return False
             
-        match_name = product_info.get('name', '').lower()
+        match_title = match_title.lower()
+        original_title = original_title.lower() if original_title else ""
+        brand = brand.lower() if brand else ""
+        model = model.lower() if model else ""
         
+        # Must match brand
+        if brand and brand not in match_title:
+            return False
+            
+        # If model is available, it must be in the match title
+        if model and model not in match_title:
+            return False
+            
         # Calculate a similarity score based on keyword matches
         matched_keywords = 0
         for keyword in keywords:
-            if keyword in match_name:
+            if keyword in match_title:
                 matched_keywords += 1
                 
         # Calculate percentage of keywords matched
         keyword_match_percentage = matched_keywords / len(keywords) if keywords else 0
         
-        # Must match at least 70% of keywords to be considered genuine
-        return keyword_match_percentage >= 0.7
+        # Must match at least 75% of keywords to be considered genuine
+        return keyword_match_percentage >= 0.75
     
-    # If we have Groq API, use it to generate more precise search results
-    if GROQ_API_KEY:
+    # Prepare search context from metadata
+    search_context = {
+        "title": product_name,
+        "brand": product_brand or "Unknown",
+        "model": product_model or "Not available",
+        "features": product_features,
+        "price": f"₹{product_price}" if product_price else "Not available"
+    }
+    
+    # If we have access to an LLM API, use it to generate more precise product matches
+    if GROQ_API_KEY or OPENAI_API_KEY:
         try:
             # Mark which information is critical for exact matching
             critical_fields = []
@@ -409,56 +431,63 @@ def search_other_platforms(metadata):
                 
             critical_info = "\n".join(critical_fields) if critical_fields else "N/A"
             
-            # Prepare product information for AI with exact product title
+            # Prepare detailed product information for the LLM
+            features_text = ""
+            if product_features:
+                features_text = "\n".join([f"- {feature}" for feature in product_features])
+            
             product_info = f"""
             Exact Product Title: {product_name}
             Brand: {product_brand}
+            Model ID / ASIN / SKU: {product_model}
+            Price: ₹{product_price if product_price else 'Not available'}
+            Key Features:
+            {features_text if features_text else "Not available"}
             """
             
-            if 'model' in metadata and metadata['model']:
-                product_info += f"Model: {metadata['model']}\n"
-                
-            if 'category' in metadata and metadata['category']:
-                product_info += f"Category: {metadata['category']}\n"
-                
-            if 'key_features' in metadata and metadata['key_features']:
-                features = "\n".join([f"- {feature}" for feature in metadata['key_features']])
-                product_info += f"Key Features:\n{features}\n"
+            # Determine which API to use (prefer Groq if available)
+            api_key = GROQ_API_KEY if GROQ_API_KEY else OPENAI_API_KEY
+            api_endpoint = "https://api.groq.com/openai/v1/chat/completions" if GROQ_API_KEY else "https://api.openai.com/v1/chat/completions"
+            model = "llama3-8b-8192" if GROQ_API_KEY else "gpt-3.5-turbo"
             
-            # Use Groq to generate improved search queries
             headers = {
                 'Content-Type': 'application/json',
-                'Authorization': f'Bearer {GROQ_API_KEY}'
+                'Authorization': f'Bearer {api_key}'
             }
             
+            # Create a detailed prompt for finding exact equivalent products
             prompt = f"""
-            I need to find the EXACT SAME product on different e-commerce platforms in India.
-            
-            Product details:
+            You are a smart shopping assistant. Given a product scraped from Amazon, search for the SAME or EXACT EQUIVALENT product on other Indian e-commerce sites like Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma.
+
+            Use the following information as your search context:
             {product_info}
+
+            Your goal is to find the SAME MODEL or CLOSEST OFFICIAL VARIANT, not just similar category items.
+
+            For each of these platforms: Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma, provide:
+            1. The exact product title as it would appear on that platform
+            2. The estimated price in INR (if you can infer it)
+            3. The product URL (search URL with the product name)
+
+            Return a list of matches in this JSON format:
+            [
+              {{
+                "website": "Flipkart",
+                "product_title": "Complete product title as it would appear",
+                "price": "₹11,999",
+                "url": "https://www.flipkart.com/search?q=product+name"
+              }},
+              ...
+            ]
+
+            CRITICAL RULES:
+            - Only include products that are the EXACT SAME model or official variant
+            - Do not include unrelated or generic products
+            - All URLs must point to valid product listings that match the brand and model
+            - Price should be a realistic estimate based on the given information
+            - Format prices with ₹ symbol and thousands separators (like ₹11,999)
             
-            Critical information for exact matching:
-            {critical_info}
-            
-            I need to extract important search keywords from the product title that will help identify this exact product on other platforms.
-            
-            For each of these platforms: Flipkart, Meesho, BigBasket, and Swiggy Instamart,
-            provide:
-            1. The best search query using these exact keywords (don't modify or paraphrase them)
-            2. An estimated price range in INR (if you can infer it)
-            
-            Return your response as a JSON object in this format:
-            {{
-              "platforms": [
-                {{
-                  "name": "Platform Name",
-                  "search_query": "exact search query with keywords",
-                  "estimated_price": number or null,
-                  "currency": "INR"
-                }},
-                ...
-              ]
-            }}
+            Your response must be ONLY a valid JSON array as shown above, with no additional text, explanations, or formatting.
             """
             
             data = {
@@ -472,63 +501,12 @@ def search_other_platforms(metadata):
                 'response_format': {'type': 'json_object'}
             }
             
-            response = requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data)
+            response = requests.post(api_endpoint, headers=headers, json=data)
             response.raise_for_status()
             
             result = response.json()
             ai_response = result['choices'][0]['message']['content']
             
-            # Make prompt more explicit about returning valid JSON with exact keywords
-            prompt = f"""
-            I need to find the EXACT SAME product on different e-commerce platforms in India. This is critical - we need to compare the same exact product, not similar or related products.
-            
-            Exact Product details:
-            {product_info}
-            
-            Critical information for exact matching:
-            {critical_info}
-            
-            Extracted keywords for searching:
-            {', '.join(keywords)}
-            
-            For each of these platforms: Flipkart, Meesho, BigBasket, and Swiggy Instamart,
-            provide:
-            1. The best search query to find this EXACT same product (use the complete product title)
-            2. An estimated price range in INR (if you can infer it)
-            
-            Return your response as a valid JSON object in this format:
-            {{
-              "platforms": [
-                {{
-                  "name": "Platform Name",
-                  "search_query": "optimized search query using exact product title",
-                  "estimated_price": number or null,
-                  "currency": "INR"
-                }},
-                ...
-              ]
-            }}
-            
-            IMPORTANT: Your response must be ONLY a valid JSON object, with no additional text, explanations, or formatting.
-            DO NOT modify or shorten the extracted keywords - use them exactly as provided to ensure we find the exact same product.
-            """
-            
-            data = {
-                'model': 'llama3-8b-8192',
-                'messages': [
-                    {'role': 'system', 'content': 'You are a helpful assistant that specializes in e-commerce product search optimization. You always respond with valid JSON.'},
-                    {'role': 'user', 'content': prompt}
-                ],
-                'temperature': 0.2,
-                'max_tokens': 800,
-                'response_format': {'type': 'json_object'}  # Request JSON format if supported
-            }
-            
-            response = requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data)
-            response.raise_for_status()
-            
-            result = response.json()
-            ai_response = result['choices'][0]['message']['content']
             
             # Validate AI response before parsing
             if not ai_response or not ai_response.strip():
@@ -541,62 +519,52 @@ def search_other_platforms(metadata):
                 cleaned_response = sanitize_json_string(ai_response)
                 ai_data = json.loads(cleaned_response)
                 
-                # Validate the expected structure
-                if 'platforms' not in ai_data or not isinstance(ai_data['platforms'], list):
-                    logger.warning("Invalid response structure from Groq AI - missing 'platforms' array")
-                    logger.debug(f"Response structure: {ai_data.keys()}")
+                # Validate the AI response structure
+                if not isinstance(ai_data, list):
+                    logger.warning("Invalid response structure from AI - expected a list of products")
+                    logger.debug(f"Response structure: {type(ai_data)}")
                     raise ValueError("Invalid response structure")
                 
-                logger.info(f"Successfully parsed Groq AI response with {len(ai_data['platforms'])} platform entries")
+                logger.info(f"Successfully parsed AI response with {len(ai_data)} product matches")
                 
-                # Update the platform URLs with AI-optimized queries
-                if 'platforms' in ai_data:
-                    for platform_info in ai_data['platforms']:
-                        platform_name = platform_info.get('name')
-                        search_query = platform_info.get('search_query')
-                        
-                        if platform_name in platform_urls and search_query:
-                            # For Flipkart
-                            if platform_name == 'Flipkart':
-                                platform_urls[platform_name] = f"https://www.flipkart.com/search?q={search_query}"
-                            
-                            # For Meesho
-                            elif platform_name == 'Meesho':
-                                platform_urls[platform_name] = f"https://www.meesho.com/search?q={search_query}"
-                            
-                            # For BigBasket
-                            elif platform_name == 'BigBasket':
-                                platform_urls[platform_name] = f"https://www.bigbasket.com/ps/?q={search_query}"
-                            
-                            # For Swiggy Instamart
-                            elif platform_name == 'Swiggy Instamart':
-                                platform_urls[platform_name] = f"https://www.swiggy.com/search?query={search_query}"
-                
-                # Build the comparison results with AI-estimated prices
+                # Transform the AI response into our expected format
                 comparisons = []
-                for platform_info in ai_data.get('platforms', []):
-                    platform_name = platform_info.get('name')
-                    if platform_name in platform_urls:
-                        # Create a comparison entry
-                        comparison_entry = {
-                            'platform': platform_name,
-                            'url': platform_urls[platform_name],
-                            'price': platform_info.get('estimated_price'),
-                            'currency': platform_info.get('currency', 'INR'),
-                            'in_stock': None,  # We don't have this information yet
-                            'last_checked': datetime.now().isoformat(),
-                            'is_genuine_match': True,  # Mark AI-generated matches as genuine
-                            'match_confidence': 0.9  # High confidence for AI-generated matches
-                        }
-                        
-                        comparisons.append(comparison_entry)
+                for product_match in ai_data:
+                    website = product_match.get('website')
+                    product_title = product_match.get('product_title')
+                    price = product_match.get('price')
+                    url = product_match.get('url')
+                    
+                    # Skip incomplete entries
+                    if not website or not product_title or not url:
+                        continue
+                    
+                    # Verify this is a genuine match
+                    if not is_genuine_match(product_title, product_name, product_brand, product_model):
+                        logger.warning(f"Filtered out non-genuine match: {product_title}")
+                        continue
+                    
+                    # Create a comparison entry in the format expected by the frontend
+                    comparison_entry = {
+                        'platform': website,
+                        'url': url,
+                        'price': price.replace('₹', '').replace(',', '') if price and price.startswith('₹') else None,
+                        'currency': 'INR',
+                        'in_stock': True,  # Assume in stock
+                        'last_checked': datetime.now().isoformat(),
+                        'is_genuine_match': True,
+                        'match_confidence': 0.9,  # High confidence for AI-generated matches
+                        'product_title': product_title  # Store the full product title
+                    }
+                    
+                    comparisons.append(comparison_entry)
                 
                 if comparisons:
                     logger.info(f"Generated {len(comparisons)} AI-enhanced platform comparisons")
                     return comparisons
                 
-                # If we couldn't build comparisons from the AI data, log and continue to fallback
-                logger.warning("Could not generate platform comparisons from AI data")
+                # If we couldn't find any genuine matches, log and continue to fallback
+                logger.warning("No genuine product matches found from AI data")
                     
             except json.JSONDecodeError as json_err:
                 # Log detailed error and truncated response for debugging
@@ -607,11 +575,12 @@ def search_other_platforms(metadata):
                 logger.warning(f"Value error processing AI response: {str(ve)}")
         
         except Exception as e:
-            logger.error(f"Error using Groq for platform search: {str(e)}")
+            logger.error(f"Error using AI for platform search: {str(e)}")
     
-    # Fallback: return basic search URLs without AI enhancement
-    basic_comparisons = [
-        {
+    # Fallback: return basic search URLs for each platform
+    basic_comparisons = []
+    for platform in platforms:
+        basic_comparisons.append({
             'platform': platform,
             'url': platform_urls[platform],
             'price': None,
@@ -619,9 +588,9 @@ def search_other_platforms(metadata):
             'in_stock': None,
             'last_checked': datetime.now().isoformat(),
             'is_genuine_match': True,  # Mark basic comparisons as genuine by default
-            'match_confidence': 0.7  # Medium confidence for basic search
-        } for platform in platforms
-    ]
+            'match_confidence': 0.7,  # Medium confidence for basic search
+            'product_title': f"{product_brand} {product_name}" if product_brand else product_name
+        })
     
     return basic_comparisons
 
