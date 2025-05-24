@@ -612,12 +612,6 @@ def scrape_amazon_product(url):
     # Only return None if we absolutely couldn't extract anything
     logger.warning("Could not extract any meaningful information from URL")
     return None
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Request error while scraping Amazon product: {str(e)}")
-        return None
-    except Exception as e:
-        logger.error(f"Error scraping Amazon product: {str(e)}")
-        return None
 
 def extract_from_json_ld(soup):
     """Extract product information from JSON-LD script tags"""
