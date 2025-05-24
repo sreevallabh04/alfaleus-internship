@@ -202,11 +202,29 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             'key_features': ['Self-adhesive', 'Easy to apply', 'Peach Blossom design']
         }
     else:
-        # If we couldn't extract a name from URL, create a more descriptive one based on domain
+        # Never use generic "Amazon Product" - extract meaningful info from URL
+        # Extract product ID and potential keywords
+        product_id = None
+        url_keywords = []
+        
+        # Find product ID
+        for segment in url.split('/'):
+            if segment.startswith('B0') and len(segment) >= 10:
+                product_id = segment
+                break
+        
+        # Look for keywords in URL segments
+        for segment in url.split('/'):
+            if segment and segment not in ['www', 'http:', 'https:', 'com', 'in', 'org', 'net', 'dp', 'product', 'gp']:
+                # Clean segment and extract potential keywords
+                clean_segment = segment.replace('-', ' ').replace('_', ' ').replace('+', ' ')
+                potential_keywords = [w for w in clean_segment.split() if len(w) > 3 and not w.startswith('B0')]
+                url_keywords.extend(potential_keywords)
+        
+        # Make a more specific product name based on domain and available keywords
         domain = urlparse(url).netloc
         domain_parts = domain.split('.')
         site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
-        category = "Product"
         
         # Determine category from URL
         url_lower = url.lower()
@@ -224,9 +242,17 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             category = "Camera"
         elif 'speaker' in url_lower or 'audio' in url_lower:
             category = "Speaker"
+        else:
+            category = "Product"
         
-        # Don't include product ID in the name
-        name = f"{category} from {site_name.capitalize()}"
+        # Use any keywords we found in the URL for a more specific name
+        if url_keywords:
+            # Capitalize keywords and join with spaces
+            keywords_str = ' '.join([k.capitalize() for k in url_keywords[:3]])  # Limit to first 3 keywords
+            name = f"{keywords_str} {category}"
+        else:
+            # If no keywords, use category + unique ID instead of generic "from {site}"
+            name = f"{category} {product_id}" if product_id else f"{category} from {site_name.capitalize()}"
         brand = extract_brand_from_name(name)
         
         return {
@@ -474,50 +500,118 @@ def scrape_amazon_product(url):
         'Cache-Control': 'max-age=0'
     }
     
-    # Add delay to avoid being blocked
-    time.sleep(random.uniform(1, 3))
-    
-    try:
-        logger.info("Sending request to Amazon with timeout of 10 seconds")
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Try multiple methods to extract product information
-        product_data = {}
-        
-        # Method 1: Extract from JSON-LD
-        logger.info("Trying to extract data from JSON-LD")
-        product_data = extract_from_json_ld(soup)
-        if product_data and 'name' in product_data and 'price' in product_data:
-            return product_data
-        
-        # Method 2: Extract from HTML elements
-        logger.info("Trying to extract data from HTML elements")
-        product_data = extract_from_html_elements(soup)
-        if product_data and 'name' in product_data and 'price' in product_data:
-            return product_data
-        
-        # Method 3: Extract from meta tags
-        logger.info("Trying to extract data from meta tags")
-        product_data = extract_from_meta_tags(soup)
-        if product_data and 'name' in product_data and 'price' in product_data:
-            return product_data
-        
-        # If we couldn't extract both name and price, log a warning
-        if not product_data or 'name' not in product_data or 'price' not in product_data:
-            logger.warning(f"Failed to extract complete product data from {url} - Name: {product_data.get('name', 'Missing')}, Price: {product_data.get('price', 'Missing')}")
+    # Make multiple attempts with different user agents
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            # Use a different user agent for each attempt
+            headers['User-Agent'] = get_random_user_agent()
             
-            # Return partial data if available
-            if product_data:
-                logger.info("Returning partial product data")
+            # Add delay to avoid being blocked (longer delay for repeated attempts)
+            time.sleep(random.uniform(1, 2 + attempt))
+            
+            logger.info(f"Sending request to Amazon (attempt {attempt+1}/{max_attempts}) with timeout of 15 seconds")
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Try multiple methods to extract product information
+            product_data = {}
+            
+            # Method 1: Extract from JSON-LD (most reliable)
+            logger.info("Trying to extract data from JSON-LD")
+            product_data = extract_from_json_ld(soup)
+            if product_data and 'name' in product_data:
+                logger.info(f"Successfully extracted product name from JSON-LD: {product_data['name']}")
                 return product_data
             
-            logger.warning("No product data could be extracted, will use mock data")
-            return None
+            # Method 2: Extract from HTML elements
+            logger.info("Trying to extract data from HTML elements")
+            product_data = extract_from_html_elements(soup)
+            if product_data and 'name' in product_data:
+                logger.info(f"Successfully extracted product name from HTML: {product_data['name']}")
+                return product_data
+            
+            # Method 3: Extract from meta tags
+            logger.info("Trying to extract data from meta tags")
+            product_data = extract_from_meta_tags(soup)
+            if product_data and 'name' in product_data:
+                logger.info(f"Successfully extracted product name from meta tags: {product_data['name']}")
+                return product_data
+            
+            # Method 4: Extract from title tag
+            logger.info("Trying to extract data from page title")
+            title_tag = soup.title
+            if title_tag and title_tag.string:
+                title_text = title_tag.string.strip()
+                # Remove common Amazon title suffixes
+                for suffix in [" | Amazon.in", " | Amazon.com", " - Amazon"]:
+                    if title_text.endswith(suffix):
+                        title_text = title_text[:-len(suffix)]
+                
+                if title_text and len(title_text) > 5:
+                    logger.info(f"Extracted product name from title: {title_text}")
+                    if not product_data:
+                        product_data = {}
+                    product_data['name'] = title_text
+                    product_data['description'] = title_text
+                    
+                    # Try to extract price if not already present
+                    price_text = soup.find(text=re.compile(r'₹|₨|Rs\.?\s*\d+|\d+\.?\d*'))
+                    if price_text:
+                        price_match = re.search(r'\d+(?:,\d+)*(?:\.\d+)?', price_text)
+                        if price_match:
+                            try:
+                                price = float(price_match.group().replace(',', ''))
+                                product_data['price'] = price
+                                product_data['currency'] = 'INR'
+                            except ValueError:
+                                pass
+                    
+                    return product_data
+            
+            # If we're on the last attempt and still couldn't extract data, log a warning
+            if attempt == max_attempts - 1:
+                logger.warning(f"Failed to extract complete product data from {url} - Name: {product_data.get('name', 'Missing')}, Price: {product_data.get('price', 'Missing')}")
+                
+                # Return partial data if available rather than None
+                if product_data:
+                    logger.info("Returning partial product data")
+                    
+                    # Ensure we have at least a name, even if we have to extract it from the URL
+                    if 'name' not in product_data or not product_data['name']:
+                        extracted_name = extract_name_from_url(url)
+                        if extracted_name:
+                            product_data['name'] = extracted_name
+                            logger.info(f"Added name from URL extraction: {extracted_name}")
+                    
+                    return product_data
         
-        return product_data
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error on attempt {attempt+1}/{max_attempts}: {str(e)}")
+            if attempt == max_attempts - 1:
+                break
+        except Exception as e:
+            logger.error(f"Error on attempt {attempt+1}/{max_attempts}: {str(e)}")
+            if attempt == max_attempts - 1:
+                break
+    
+    # After all attempts failed, try to extract meaningful info from the URL
+    logger.warning("All scraping attempts failed, extracting from URL")
+    url_name = extract_name_from_url(url)
+    if url_name:
+        logger.info(f"Extracted name from URL: {url_name}")
+        return {
+            'name': url_name,
+            'description': f"Product details for {url_name}",
+            'url': url,
+            'is_extracted_from_url': True  # Flag to indicate this is URL-extracted data
+        }
+    
+    # Only return None if we absolutely couldn't extract anything
+    logger.warning("Could not extract any meaningful information from URL")
+    return None
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error while scraping Amazon product: {str(e)}")
         return None
