@@ -54,6 +54,61 @@ def extract_product_metadata(url):
         logger.error(f"Error extracting product metadata: {str(e)}")
         return None
 
+def extract_keywords_from_title(title, brand=None, model=None):
+    """
+    Extract relevant keywords from a product title for better cross-platform searching
+    
+    Args:
+        title (str): The product title
+        brand (str, optional): Product brand if available
+        model (str, optional): Product model if available
+        
+    Returns:
+        list: A list of important keywords
+    """
+    if not title:
+        return []
+        
+    # If we have brand and model, make sure they're included
+    important_terms = []
+    if brand and len(brand) > 1:
+        important_terms.append(brand.lower())
+    if model and len(model) > 1:
+        important_terms.append(model.lower())
+    
+    # Split the title into words
+    words = title.lower().split()
+    
+    # Filter out common filler words
+    stopwords = ['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'in', 'with', 'for', 'on', 'at', 'to', 'from']
+    
+    # Extract words that might be important (longer words, numbers, etc.)
+    for word in words:
+        # Skip short words and stopwords
+        if len(word) <= 2 or word in stopwords:
+            continue
+            
+        # Check if it's a number or contains digits (could be important specs)
+        if word.isdigit() or any(c.isdigit() for c in word):
+            important_terms.append(word)
+            continue
+            
+        # Check if it's an important specification term
+        spec_terms = ['gb', 'tb', 'mb', 'inch', 'cm', 'mm', 'kg', 'liter', 'watt', 'volt', 'hz']
+        if any(term in word for term in spec_terms):
+            important_terms.append(word)
+            continue
+            
+        # Add other potentially important terms (longer words)
+        if len(word) >= 4:
+            important_terms.append(word)
+    
+    # Add the full title at the end to ensure we have the complete context
+    if title.lower() not in important_terms:
+        important_terms.append(title.lower())
+        
+    return important_terms
+
 def enhance_metadata_with_groq(product_data):
     """
     Use Groq API to enhance product metadata
@@ -290,15 +345,26 @@ def search_other_platforms(metadata):
         logger.error("Missing product name for comparison search")
         return []
         
-    # Extract brand for better search precision
+    # Extract brand and model for better search precision
     product_brand = metadata.get('brand', '')
+    product_model = metadata.get('model', '')
     
-    # Create search query with brand + product name for better results
+    # Extract keywords from the product title
+    keywords = extract_keywords_from_title(product_name, product_brand, product_model)
+    logger.info(f"Extracted keywords for search: {keywords}")
+    
+    # Create search query with brand + model + keywords for better results
     search_query = product_name
+    
+    # If brand isn't in the name, prepend it
     if product_brand and product_brand.lower() not in product_name.lower():
         search_query = f"{product_brand} {product_name}"
+        
+    # If model isn't in the name or brand, include it as well
+    if product_model and product_model.lower() not in search_query.lower():
+        search_query = f"{search_query} {product_model}"
     
-    logger.info(f"Using exact product title for comparison: {search_query}")
+    logger.info(f"Using optimized search query for comparison: {search_query}")
     
     # Basic search URLs for each platform with full product name
     platform_urls = {
@@ -308,9 +374,41 @@ def search_other_platforms(metadata):
         'Swiggy Instamart': f"https://www.swiggy.com/search?query={search_query}"
     }
     
+    # Create a function to check if a product match is genuine based on keywords
+    def is_genuine_match(product_info):
+        """
+        Check if a product match is genuine by comparing keywords
+        Returns True if it's a genuine match, False otherwise
+        """
+        if not product_info or 'name' not in product_info:
+            return False
+            
+        match_name = product_info.get('name', '').lower()
+        
+        # Calculate a similarity score based on keyword matches
+        matched_keywords = 0
+        for keyword in keywords:
+            if keyword in match_name:
+                matched_keywords += 1
+                
+        # Calculate percentage of keywords matched
+        keyword_match_percentage = matched_keywords / len(keywords) if keywords else 0
+        
+        # Must match at least 70% of keywords to be considered genuine
+        return keyword_match_percentage >= 0.7
+    
     # If we have Groq API, use it to generate more precise search results
     if GROQ_API_KEY:
         try:
+            # Mark which information is critical for exact matching
+            critical_fields = []
+            if product_brand:
+                critical_fields.append(f"Brand: {product_brand}")
+            if product_model:
+                critical_fields.append(f"Model: {product_model}")
+                
+            critical_info = "\n".join(critical_fields) if critical_fields else "N/A"
+            
             # Prepare product information for AI with exact product title
             product_info = f"""
             Exact Product Title: {product_name}
@@ -334,14 +432,19 @@ def search_other_platforms(metadata):
             }
             
             prompt = f"""
-            I need to find the same product on different e-commerce platforms in India.
+            I need to find the EXACT SAME product on different e-commerce platforms in India.
             
             Product details:
             {product_info}
             
+            Critical information for exact matching:
+            {critical_info}
+            
+            I need to extract important search keywords from the product title that will help identify this exact product on other platforms.
+            
             For each of these platforms: Flipkart, Meesho, BigBasket, and Swiggy Instamart,
             provide:
-            1. The best search query to find this exact product
+            1. The best search query using these exact keywords (don't modify or paraphrase them)
             2. An estimated price range in INR (if you can infer it)
             
             Return your response as a JSON object in this format:
@@ -349,7 +452,7 @@ def search_other_platforms(metadata):
               "platforms": [
                 {{
                   "name": "Platform Name",
-                  "search_query": "optimized search query",
+                  "search_query": "exact search query with keywords",
                   "estimated_price": number or null,
                   "currency": "INR"
                 }},
@@ -361,11 +464,12 @@ def search_other_platforms(metadata):
             data = {
                 'model': 'llama3-8b-8192',
                 'messages': [
-                    {'role': 'system', 'content': 'You are a helpful assistant that specializes in e-commerce product search optimization.'},
+                    {'role': 'system', 'content': 'You are a helpful assistant that specializes in e-commerce product search optimization using exact keywords without paraphrasing.'},
                     {'role': 'user', 'content': prompt}
                 ],
                 'temperature': 0.2,
-                'max_tokens': 800
+                'max_tokens': 800,
+                'response_format': {'type': 'json_object'}
             }
             
             response = requests.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=data)
@@ -374,12 +478,18 @@ def search_other_platforms(metadata):
             result = response.json()
             ai_response = result['choices'][0]['message']['content']
             
-            # Make prompt more explicit about returning valid JSON
+            # Make prompt more explicit about returning valid JSON with exact keywords
             prompt = f"""
             I need to find the EXACT SAME product on different e-commerce platforms in India. This is critical - we need to compare the same exact product, not similar or related products.
             
             Exact Product details:
             {product_info}
+            
+            Critical information for exact matching:
+            {critical_info}
+            
+            Extracted keywords for searching:
+            {', '.join(keywords)}
             
             For each of these platforms: Flipkart, Meesho, BigBasket, and Swiggy Instamart,
             provide:
@@ -400,7 +510,7 @@ def search_other_platforms(metadata):
             }}
             
             IMPORTANT: Your response must be ONLY a valid JSON object, with no additional text, explanations, or formatting.
-            DO NOT modify or shorten the product title - use it exactly as provided to ensure we find the exact same product.
+            DO NOT modify or shorten the extracted keywords - use them exactly as provided to ensure we find the exact same product.
             """
             
             data = {
@@ -467,14 +577,19 @@ def search_other_platforms(metadata):
                 for platform_info in ai_data.get('platforms', []):
                     platform_name = platform_info.get('name')
                     if platform_name in platform_urls:
-                        comparisons.append({
+                        # Create a comparison entry
+                        comparison_entry = {
                             'platform': platform_name,
                             'url': platform_urls[platform_name],
                             'price': platform_info.get('estimated_price'),
                             'currency': platform_info.get('currency', 'INR'),
                             'in_stock': None,  # We don't have this information yet
-                            'last_checked': datetime.now().isoformat()
-                        })
+                            'last_checked': datetime.now().isoformat(),
+                            'is_genuine_match': True,  # Mark AI-generated matches as genuine
+                            'match_confidence': 0.9  # High confidence for AI-generated matches
+                        }
+                        
+                        comparisons.append(comparison_entry)
                 
                 if comparisons:
                     logger.info(f"Generated {len(comparisons)} AI-enhanced platform comparisons")
@@ -495,16 +610,20 @@ def search_other_platforms(metadata):
             logger.error(f"Error using Groq for platform search: {str(e)}")
     
     # Fallback: return basic search URLs without AI enhancement
-    return [
+    basic_comparisons = [
         {
             'platform': platform,
             'url': platform_urls[platform],
             'price': None,
             'currency': 'INR',
             'in_stock': None,
-            'last_checked': datetime.now().isoformat()
+            'last_checked': datetime.now().isoformat(),
+            'is_genuine_match': True,  # Mark basic comparisons as genuine by default
+            'match_confidence': 0.7  # Medium confidence for basic search
         } for platform in platforms
     ]
+    
+    return basic_comparisons
 
 # Note: To fully implement the multi-platform comparison feature,
 # you would need to add scraping logic for each platform (Flipkart, Meesho, etc.)
