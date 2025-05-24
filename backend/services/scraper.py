@@ -6,23 +6,20 @@ import logging
 import time
 import random
 import os
-from urllib.parse import urlparse, parse_qs
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 from flask import current_app
 
 logger = logging.getLogger(__name__)
 
-# User agents to rotate - expanded list with modern browsers
+# User agents to rotate - use more recent browser versions
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 ]
 
 def get_random_user_agent():
@@ -32,7 +29,7 @@ def get_random_user_agent():
 def is_development_mode():
     """
     Check if the application is running in development mode
-    Used to determine when mock data is permitted (only in development)
+    This is more strict to ensure production never uses mock data
     """
     try:
         # Check Flask environment
@@ -49,14 +46,14 @@ def is_development_mode():
 def should_use_mock_data():
     """
     Determine if we should use mock data based on environment variables
-    In production, this should ALWAYS return False
+    This is now deterministic and not random for consistency
     """
     # Check for explicit environment variable to allow mocks
     allow_mocks = os.environ.get('ALLOW_MOCK_DATA', 'false').lower() == 'true'
     
     # Only allow mock data if explicitly enabled AND in development mode
     if is_development_mode() and allow_mocks:
-        logger.warning("Mock data is allowed in development mode because ALLOW_MOCK_DATA=true")
+        logger.warning("Mock data is allowed in development mode")
         return True
     
     # In production, NEVER use mock data
@@ -66,6 +63,7 @@ def scrape_product(url):
     """
     Scrape product information from the given URL
     Returns a dictionary with product details or error information
+    Never returns None - always returns a dict with either product data or error details
     """
     try:
         logger.info(f"Starting scrape for URL: {url}")
@@ -85,7 +83,7 @@ def scrape_product(url):
                 logger.info(f"Amazon scraping attempt {attempt+1}/3")
                 result = scrape_amazon_product(url)
                 
-                if result and 'name' in result and result['name']:
+                if result and 'name' in result and result['name'] and not result.get('scraping_failed', False):
                     logger.info(f"Successfully scraped Amazon product: {result.get('name', 'Unknown')}")
                     
                     # Flag to indicate this is real data, not mock
@@ -174,406 +172,6 @@ def extract_custom_product_name(url):
     except Exception as e:
         logger.warning(f"Error extracting custom product name from URL: {str(e)}")
         return None
-
-def get_mock_product_data(url, existing_metadata=None, custom_product_name=None):
-    """
-    Generate mock product data for testing purposes
-    This ensures the application can function even when scraping fails
-    
-    Args:
-        url (str): The URL from which we tried to scrape
-        existing_metadata (dict, optional): Any metadata that was already extracted
-        custom_product_name (str, optional): User-provided product name
-    """
-    logger.info(f"Generating mock data for URL: {url}")
-    
-    # If user provided a custom product name, use it
-    if custom_product_name:
-        logger.info(f"Using custom product name: {custom_product_name}")
-        name = custom_product_name
-        brand = extract_brand_from_name(name)
-        
-        return {
-            'name': name,
-            'brand': brand,
-            'description': generate_description(name),
-            'price': generate_realistic_price(name),
-            'currency': 'INR',
-            'image_url': 'https://via.placeholder.com/500',
-            'category': guess_category(name),
-            'key_features': generate_features(name),
-            'is_mock_data': True  # Flag to indicate this is mock data
-        }
-    
-    # If we already have metadata, use it as a base for our mock data
-    if existing_metadata and isinstance(existing_metadata, dict):
-        # Create a copy to avoid modifying the original
-        mock_data = existing_metadata.copy()
-        
-        # Ensure all required fields are present
-        if 'name' not in mock_data or not mock_data['name']:
-            mock_data['name'] = extract_name_from_url(url)
-        
-        if 'price' not in mock_data or not mock_data['price']:
-            mock_data['price'] = generate_realistic_price(mock_data.get('name', ''))
-        
-        if 'currency' not in mock_data:
-            mock_data['currency'] = 'INR'
-            
-        if 'description' not in mock_data or not mock_data['description']:
-            mock_data['description'] = generate_description(mock_data.get('name', ''))
-            
-        if 'image_url' not in mock_data or not mock_data['image_url']:
-            mock_data['image_url'] = 'https://via.placeholder.com/500'
-            
-        if 'brand' not in mock_data:
-            mock_data['brand'] = extract_brand_from_name(mock_data.get('name', ''))
-        
-        logger.info(f"Generated enhanced mock data from existing metadata for: {mock_data.get('name')}")
-        mock_data['is_mock_data'] = True
-        return mock_data
-    
-    # Try to extract a meaningful name from the URL
-    url_name = extract_name_from_url(url)
-    if url_name:
-        logger.info(f"Extracted product name from URL: {url_name}")
-        name = url_name
-        brand = extract_brand_from_name(name)
-        
-        return {
-            'name': name,
-            'brand': brand,
-            'description': generate_description(name),
-            'price': generate_realistic_price(name),
-            'currency': 'INR',
-            'image_url': 'https://via.placeholder.com/500',
-            'category': guess_category(name),
-            'key_features': generate_features(name),
-            'is_mock_data': True  # Flag to indicate this is mock data
-        }
-    
-    # Use different mock data based on the URL to simulate variety
-    if 'nutrabay' in url.lower() or 'protein' in url.lower():
-        return {
-            'name': 'Nutrabay Gold Whey Protein Powder - Premium Blend with Essential Amino Acids',
-            'brand': 'Nutrabay',
-            'description': 'High-quality protein supplement with 24g protein per serving, essential for muscle recovery and growth.',
-            'price': 1299.00,
-            'currency': 'INR',
-            'image_url': 'https://m.media-amazon.com/images/I/71sBPpACkJL._SL1500_.jpg',
-            'category': 'Health & Fitness',
-            'key_features': ['24g protein per serving', 'Muscle recovery', 'Added vitamins & minerals'],
-            'is_mock_data': True
-        }
-    elif 'panasonic' in url.lower() or 'air' in url.lower() or 'conditioner' in url.lower():
-        return {
-            'name': 'Panasonic 1.5 Ton 3 Star Wi-Fi Inverter Smart Split AC',
-            'brand': 'Panasonic',
-            'description': 'Energy efficient air conditioner with smart features and cooling technology.',
-            'price': 37490.00,
-            'currency': 'INR',
-            'image_url': 'https://m.media-amazon.com/images/I/61ixP5oBSCL._SL1500_.jpg',
-            'category': 'Home Appliances',
-            'key_features': ['1.5 Ton capacity', 'Wi-Fi enabled', '3 Star energy rating'],
-            'is_mock_data': True
-        }
-    elif 'crimson' in url.lower() or 'wallpaper' in url.lower():
-        return {
-            'name': 'CRIMSON DECORS™ Peach Blossom SELF Adhesive Wallpaper',
-            'brand': 'CRIMSON DECORS',
-            'description': 'Self-adhesive decorative wallpaper for home decoration, easy to apply and remove.',
-            'price': 73.00,
-            'currency': 'INR',
-            'image_url': 'https://m.media-amazon.com/images/I/71JQ+kXfs1L._SL1500_.jpg',
-            'category': 'Home Decor',
-            'key_features': ['Self-adhesive', 'Easy to apply', 'Peach Blossom design'],
-            'is_mock_data': True
-        }
-    else:
-        # Extract product ID and potential keywords
-        product_id = None
-        url_keywords = []
-        
-        # Find product ID
-        for segment in url.split('/'):
-            if segment.startswith('B0') and len(segment) >= 10:
-                product_id = segment
-                break
-        
-        # Look for keywords in URL segments
-        for segment in url.split('/'):
-            if segment and segment not in ['www', 'http:', 'https:', 'com', 'in', 'org', 'net', 'dp', 'product', 'gp']:
-                # Clean segment and extract potential keywords
-                clean_segment = segment.replace('-', ' ').replace('_', ' ').replace('+', ' ')
-                potential_keywords = [w for w in clean_segment.split() if len(w) > 3 and not w.startswith('B0')]
-                url_keywords.extend(potential_keywords)
-        
-        # Make a more specific product name based on domain and available keywords
-        domain = urlparse(url).netloc
-        domain_parts = domain.split('.')
-        site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
-        
-        # Determine category from URL
-        url_lower = url.lower()
-        if 'phone' in url_lower or 'mobile' in url_lower or 'smartphone' in url_lower:
-            category = "Smartphone"
-        elif 'laptop' in url_lower or 'notebook' in url_lower:
-            category = "Laptop"
-        elif 'tv' in url_lower or 'television' in url_lower:
-            category = "Television"
-        elif 'watch' in url_lower or 'wearable' in url_lower:
-            category = "Smartwatch"
-        elif 'headphone' in url_lower or 'earphone' in url_lower or 'earbud' in url_lower:
-            category = "Headphones"
-        elif 'camera' in url_lower:
-            category = "Camera"
-        elif 'speaker' in url_lower or 'audio' in url_lower:
-            category = "Speaker"
-        else:
-            category = "Product"
-        
-        # Use any keywords we found in the URL for a more specific name
-        if url_keywords:
-            # Capitalize keywords and join with spaces
-            keywords_str = ' '.join([k.capitalize() for k in url_keywords[:3]])  # Limit to first 3 keywords
-            name = f"{keywords_str} {category}"
-        else:
-            # If no keywords, use category + unique ID instead of generic "from {site}"
-            name = f"{category} {product_id}" if product_id else f"{category} from {site_name.capitalize()}"
-        brand = extract_brand_from_name(name)
-        
-        return {
-            'name': name,
-            'brand': brand,
-            'description': generate_description(name),
-            'price': generate_realistic_price(name),
-            'currency': 'INR',
-            'image_url': 'https://via.placeholder.com/500',
-            'category': guess_category(name),
-            'key_features': generate_features(name),
-            'is_mock_data': True  # Flag to indicate this is mock data
-        }
-
-def extract_name_from_url(url):
-    """Extract a product name from URL"""
-    if not url:
-        return "Generic Product"
-        
-    # Remove URL parameters
-    clean_url = url.split('?')[0]
-    
-    # Split by slashes
-    parts = clean_url.split('/')
-    
-    # Look for product name in path parts
-    product_name = None
-    
-    # First look for Amazon product titles which often appear after /dp/ or in the last segment
-    dp_index = -1
-    for i, part in enumerate(parts):
-        if part == 'dp' or part == 'gp' or part == 'product':
-            dp_index = i
-            break
-    
-    # If we found /dp/ or similar, check the segment after it, which is often just a product ID
-    # Then look for descriptive segments after or before that
-    if dp_index >= 0 and dp_index + 2 < len(parts) and parts[dp_index + 2]:
-        descriptive_part = parts[dp_index + 2]
-        clean_part = descriptive_part.replace('-', ' ').replace('_', ' ').replace('+', ' ')
-        if len([w for w in clean_part.split() if len(w) > 2]) >= 2:
-            product_name = ' '.join([w.capitalize() for w in clean_part.split() if len(w) > 1])
-    
-    # If we didn't find a name yet, check all segments
-    if not product_name:
-        for i, part in enumerate(parts):
-            # Skip empty parts or common URL elements
-            if not part or part.lower() in ['www', 'http:', 'https:', 'com', 'in', 'org', 'net']:
-                continue
-                
-            # Look for parts that might be product names
-            clean_part = part.replace('-', ' ').replace('_', ' ').replace('+', ' ')
-            
-            # If this part has 2+ words and isn't just a product ID, it might be a name
-            words = [w for w in clean_part.split() if len(w) > 1]
-            if len(words) >= 2 and not part.startswith('B0'):
-                product_name = ' '.join([w.capitalize() for w in words])
-                break
-    
-    # If we still don't have a name, check for product titles in URL query parameters
-    if not product_name and '?' in url:
-        query = url.split('?')[1]
-        params = query.split('&')
-        for param in params:
-            if '=' in param:
-                key, value = param.split('=', 1)
-                if key.lower() in ['title', 'name', 'product', 'item', 'keyword', 'search']:
-                    clean_value = value.replace('+', ' ').replace('%20', ' ')
-                    if len(clean_value) > 5:  # Minimum reasonable length
-                        words = clean_value.split()
-                        if len(words) >= 2:
-                            product_name = ' '.join([w.capitalize() for w in words if len(w) > 1])
-                            break
-    
-    # If we still don't have a product name, use a more descriptive generic name
-    if not product_name:
-        # Determine the domain
-        domain = urlparse(url).netloc
-        domain_parts = domain.split('.')
-        site_name = next((part for part in domain_parts if part not in ['www', 'com', 'co', 'in', 'org', 'net']), 'online')
-        
-        # Try to extract a category from the URL
-        url_lower = url.lower()
-        category = "Item"
-        
-        if 'phone' in url_lower or 'mobile' in url_lower:
-            category = "Smartphone"
-        elif 'laptop' in url_lower:
-            category = "Laptop"
-        elif 'tv' in url_lower:
-            category = "Television"
-        elif 'watch' in url_lower:
-            category = "Watch"
-        elif 'headphone' in url_lower or 'earphone' in url_lower:
-            category = "Headphones"
-        elif 'camera' in url_lower:
-            category = "Camera"
-        
-        # Don't include the product ID in the name
-        product_name = f"{category} from {site_name.capitalize()}"
-    
-    return product_name
-
-def extract_brand_from_name(name):
-    """Extract likely brand name from product name"""
-    if not name:
-        return "Unknown"
-        
-    # Common strategy: first word is often the brand
-    parts = name.split()
-    if parts:
-        # Common brand names to check for
-        common_brands = [
-            'Apple', 'Samsung', 'Sony', 'LG', 'Dell', 'HP', 'Lenovo', 'Asus', 
-            'Acer', 'Microsoft', 'Philips', 'Panasonic', 'Xiaomi', 'OnePlus',
-            'Huawei', 'Oppo', 'Vivo', 'Realme', 'Nokia', 'Motorola', 'Google',
-            'Amazon', 'Bosch', 'Whirlpool', 'Canon', 'Nikon', 'JBL', 'Bose',
-            'Adidas', 'Nike', 'Puma', 'Nestle', 'Amul', 'Flipkart', 'Nutrabay'
-        ]
-        
-        # Check if first word is a known brand
-        if parts[0].capitalize() in common_brands:
-            return parts[0].capitalize()
-        
-        # Check if any word in the first three is a known brand
-        for i in range(min(3, len(parts))):
-            if parts[i].capitalize() in common_brands:
-                return parts[i].capitalize()
-        
-        # Default to first word
-        return parts[0].capitalize()
-    
-    return "Unknown"
-
-def generate_description(name):
-    """Generate a plausible product description based on name"""
-    if not name:
-        return "High-quality product with premium features and reliable performance."
-    
-    # Look for keywords to generate more specific descriptions
-    name_lower = name.lower()
-    
-    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
-        return "High-quality protein supplement that supports muscle recovery and growth. Ideal for fitness enthusiasts and athletes."
-    
-    if any(term in name_lower for term in ['tv', 'television', 'monitor', 'display']):
-        return "High-definition display with vibrant colors and crisp imagery. Perfect for entertainment and gaming."
-    
-    if any(term in name_lower for term in ['phone', 'smartphone', 'mobile']):
-        return "Feature-rich smartphone with advanced camera capabilities and long battery life. Stay connected with the latest technology."
-    
-    if any(term in name_lower for term in ['laptop', 'notebook', 'computer']):
-        return "Powerful computing device with fast processing and ample storage. Designed for productivity and performance."
-    
-    # Generic fallback
-    return f"Quality {name} with premium features and reliable performance. Designed to meet your needs with exceptional value."
-
-def generate_realistic_price(name):
-    """Generate a realistic price based on product name"""
-    name_lower = name.lower() if name else ""
-    
-    # Price ranges by product category
-    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
-        return round(random.uniform(999, 2499), 0)
-    
-    if any(term in name_lower for term in ['tv', 'television', 'oled', 'qled']):
-        return round(random.uniform(15000, 85000), -1)  # Round to nearest 10
-    
-    if any(term in name_lower for term in ['phone', 'smartphone', 'iphone']):
-        return round(random.uniform(8000, 120000), -2)  # Round to nearest 100
-    
-    if any(term in name_lower for term in ['laptop', 'macbook', 'notebook']):
-        return round(random.uniform(35000, 150000), -2)  # Round to nearest 100
-    
-    if any(term in name_lower for term in ['watch', 'smartwatch']):
-        return round(random.uniform(1500, 35000), -1)  # Round to nearest 10
-    
-    if any(term in name_lower for term in ['book', 'novel', 'textbook']):
-        return round(random.uniform(199, 1499), 0)
-    
-    if any(term in name_lower for term in ['shirt', 'tshirt', 't-shirt', 'clothing']):
-        return round(random.uniform(399, 2999), -1)  # Round to nearest 10
-    
-    # Generic fallback
-    return round(random.uniform(500, 5000), -1)  # Round to nearest 10
-
-def guess_category(name):
-    """Guess product category from name"""
-    name_lower = name.lower() if name else ""
-    
-    if any(term in name_lower for term in ['protein', 'whey', 'supplement', 'vitamin']):
-        return "Health & Fitness"
-    
-    if any(term in name_lower for term in ['tv', 'television', 'monitor', 'display']):
-        return "Electronics > TV & Video"
-    
-    if any(term in name_lower for term in ['phone', 'smartphone', 'mobile']):
-        return "Electronics > Smartphones"
-    
-    if any(term in name_lower for term in ['laptop', 'notebook', 'computer']):
-        return "Electronics > Computers"
-    
-    if any(term in name_lower for term in ['camera', 'dslr', 'mirrorless']):
-        return "Electronics > Cameras"
-    
-    if any(term in name_lower for term in ['book', 'novel', 'textbook']):
-        return "Books"
-    
-    if any(term in name_lower for term in ['shirt', 'tshirt', 't-shirt', 'clothing', 'jacket']):
-        return "Fashion > Clothing"
-    
-    if any(term in name_lower for term in ['shoes', 'sneakers', 'footwear']):
-        return "Fashion > Footwear"
-    
-    return "General Merchandise"
-
-def generate_features(name):
-    """Generate plausible key features based on product name"""
-    name_lower = name.lower() if name else ""
-    
-    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
-        return ['High protein content', 'Muscle recovery support', 'Great taste']
-    
-    if any(term in name_lower for term in ['tv', 'television']):
-        return ['4K Ultra HD resolution', 'Smart TV functionality', 'Multiple connectivity options']
-    
-    if any(term in name_lower for term in ['phone', 'smartphone']):
-        return ['Advanced camera system', 'All-day battery life', 'Fast processor']
-    
-    if any(term in name_lower for term in ['laptop', 'notebook']):
-        return ['Powerful performance', 'Lightweight design', 'Long battery life']
-    
-    # Generic fallback
-    return ['High quality', 'Durable construction', 'Excellent value']
 
 def scrape_amazon_product(url):
     """
@@ -869,107 +467,173 @@ def extract_product_from_json_ld(data):
         if 'priceCurrency' in offers:
             product['currency'] = offers['priceCurrency']
     
+    # Try to extract brand
+    if 'brand' in data:
+        try:
+            if isinstance(data['brand'], dict) and 'name' in data['brand']:
+                product['brand'] = data['brand']['name']
+            elif isinstance(data['brand'], str):
+                product['brand'] = data['brand']
+        except Exception:
+            pass
+    
     return product
 
 def extract_from_html_elements(soup):
-    """Extract product information from HTML elements"""
+    """Extract product information from HTML elements with more selectors"""
     product = {}
     
     # Extract product name
-    name_element = soup.select_one('#productTitle')
-    if name_element:
-        product['name'] = name_element.text.strip()
+    name_selectors = ['#productTitle', '.product-title', '.product-name', 'h1.a-size-large']
+    for selector in name_selectors:
+        name_element = soup.select_one(selector)
+        if name_element and name_element.text.strip():
+            product['name'] = name_element.text.strip()
+            break
     
-    # Extract product price - expanded selectors for Amazon
-    price_elements = [
-        soup.select_one('#priceblock_ourprice'),
-        soup.select_one('#priceblock_dealprice'),
-        soup.select_one('.a-price .a-offscreen'),
-        soup.select_one('.a-price'),
-        soup.select_one('#corePrice_feature_div .a-offscreen'),
-        soup.select_one('.a-price-whole'),
-        soup.select_one('#price'),
-        soup.select_one('.price-large')
+    # Extract product price - try multiple selectors
+    price_selectors = [
+        '#priceblock_ourprice',
+        '#priceblock_dealprice',
+        '.a-price .a-offscreen',
+        '.a-price',
+        '.priceToPay',
+        '.a-color-price',
+        '#price',
+        '[data-a-color="price"]'
     ]
     
-    for element in price_elements:
-        if element:
-            price_text = element.text.strip()
-            price_match = re.search(r'[\d,]+\.\d+', price_text.replace(',', ''))
-            if price_match:
-                try:
-                    product['price'] = float(price_match.group().replace(',', ''))
-                    break
-                except (ValueError, AttributeError):
-                    continue
+    for selector in price_selectors:
+        price_elements = soup.select(selector)
+        for element in price_elements:
+            if element:
+                price_text = element.text.strip()
+                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                if price_match:
+                    try:
+                        price_str = price_match.group().replace(',', '')
+                        product['price'] = float(price_str)
+                        
+                        # Get currency
+                        if '₹' in price_text or 'Rs' in price_text:
+                            product['currency'] = 'INR'
+                        elif '$' in price_text:
+                            product['currency'] = 'USD'
+                        elif '€' in price_text:
+                            product['currency'] = 'EUR'
+                        elif '£' in price_text:
+                            product['currency'] = 'GBP'
+                        else:
+                            product['currency'] = 'INR'  # Default for Indian store
+                            
+                        break
+                    except (ValueError, AttributeError):
+                        continue
+            if 'price' in product:  # Break outer loop if price found
+                break
     
-    # Extract product image - expanded selectors
+    # Extract product image with multiple selectors
     image_selectors = [
-        '#landingImage',
-        '#imgBlkFront',
+        '#landingImage', 
+        '#imgBlkFront', 
+        '.a-dynamic-image', 
         '#main-image',
-        '.a-dynamic-image',
-        '#main-image-container img',
-        '#imageBlock img',
-        '#img-canvas img'
+        '.product-image img',
+        '.imgTagWrapper img'
     ]
     
     for selector in image_selectors:
         image_element = soup.select_one(selector)
         if image_element:
-            if 'data-old-hires' in image_element.attrs:
-                product['image_url'] = image_element['data-old-hires']
-                break
-            elif 'src' in image_element.attrs:
-                product['image_url'] = image_element['src']
+            # Try different attributes
+            for attr in ['data-old-hires', 'data-a-dynamic-image', 'src']:
+                if attr in image_element.attrs:
+                    if attr == 'data-a-dynamic-image':
+                        # This is a JSON string with URLs
+                        try:
+                            image_urls = json.loads(image_element[attr])
+                            if image_urls and isinstance(image_urls, dict):
+                                # Get the first URL (key)
+                                product['image_url'] = list(image_urls.keys())[0]
+                                break
+                        except (json.JSONDecodeError, IndexError):
+                            pass
+                    else:
+                        product['image_url'] = image_element[attr]
+                        break
+            
+            if 'image_url' in product:
                 break
     
     # Extract product description
     description_selectors = [
-        '#productDescription',
-        '#feature-bullets',
+        '#productDescription', 
+        '#feature-bullets', 
         '.product-description',
-        '#aplus',
-        '.aplus-v2'
+        '.aplus-module-wrapper'
     ]
     
     for selector in description_selectors:
         description_element = soup.select_one(selector)
-        if description_element:
+        if description_element and description_element.text.strip():
             product['description'] = description_element.text.strip()
             break
     
     # Extract brand
     brand_selectors = [
         '.po-brand .a-span9',
+        '.a-section .a-spacing-small:contains("Brand")',
         '#bylineInfo',
-        '.a-link-normal[href*=brand]',
-        '.po-brand .a-section'
+        '.product-by-line'
     ]
     
     for selector in brand_selectors:
-        brand_element = soup.select_one(selector)
-        if brand_element:
-            brand_text = brand_element.text.strip()
-            brand_match = re.search(r'Brand:\s*([^\n]+)', brand_text)
-            if brand_match:
-                product['brand'] = brand_match.group(1).strip()
+        try:
+            if selector.endswith('("Brand")'):
+                # Handle contains selector
+                brand_row = None
+                for row in soup.select('.a-section .a-spacing-small'):
+                    if 'Brand' in row.text:
+                        brand_row = row
+                        break
+                
+                if brand_row:
+                    # Find the value part
+                    value_element = brand_row.select_one('.a-span9')
+                    if value_element:
+                        product['brand'] = value_element.text.strip()
             else:
-                product['brand'] = brand_text.replace('Brand:', '').replace('Visit the', '').replace('Store', '').strip()
+                # Regular selector
+                brand_element = soup.select_one(selector)
+                if brand_element:
+                    brand_text = brand_element.text.strip()
+                    # Clean up common prefixes
+                    for prefix in ['Brand:', 'Visit the', 'Store']:
+                        if brand_text.startswith(prefix):
+                            brand_text = brand_text[len(prefix):].strip()
+                    product['brand'] = brand_text
+        except Exception:
+            continue
+        
+        if 'brand' in product and product['brand']:
             break
     
-    # Extract currency
-    if 'price' in product:
-        currency_match = re.search(r'[₹$€£]', soup.text)
-        if currency_match:
-            currency_symbol = currency_match.group()
-            currency_map = {
-                '$': 'USD',
-                '€': 'EUR',
-                '£': 'GBP',
-                '₹': 'INR'
-            }
-            product['currency'] = currency_map.get(currency_symbol, 'USD')
+    # Extract availability
+    availability_selectors = [
+        '#availability',
+        '.availability',
+        '#deliveryMessageMirId'
+    ]
+    
+    for selector in availability_selectors:
+        avail_element = soup.select_one(selector)
+        if avail_element:
+            avail_text = avail_element.text.strip().lower()
+            if 'in stock' in avail_text:
+                product['in_stock'] = True
+            elif 'out of stock' in avail_text or 'unavailable' in avail_text:
+                product['in_stock'] = False
+            break
     
     return product
 
@@ -978,31 +642,388 @@ def extract_from_meta_tags(soup):
     product = {}
     
     # Extract product name
-    og_title = soup.find('meta', property='og:title')
-    if og_title and 'content' in og_title.attrs:
-        product['name'] = og_title['content'].strip()
+    name_meta_selectors = [
+        ('meta', {'property': 'og:title'}),
+        ('meta', {'name': 'title'}),
+        ('meta', {'itemprop': 'name'})
+    ]
+    
+    for tag, attrs in name_meta_selectors:
+        element = soup.find(tag, attrs)
+        if element and 'content' in element.attrs and element['content'].strip():
+            product['name'] = element['content'].strip()
+            # Remove common Amazon suffixes
+            for suffix in [" | Amazon.in", " | Amazon.com", " - Amazon"]:
+                if product['name'].endswith(suffix):
+                    product['name'] = product['name'][:-len(suffix)].strip()
+            break
     
     # Extract product image
-    og_image = soup.find('meta', property='og:image')
-    if og_image and 'content' in og_image.attrs:
-        product['image_url'] = og_image['content']
+    image_meta_selectors = [
+        ('meta', {'property': 'og:image'}),
+        ('meta', {'itemprop': 'image'})
+    ]
+    
+    for tag, attrs in image_meta_selectors:
+        element = soup.find(tag, attrs)
+        if element and 'content' in element.attrs and element['content'].strip():
+            product['image_url'] = element['content'].strip()
+            break
     
     # Extract product description
-    og_description = soup.find('meta', property='og:description')
-    if og_description and 'content' in og_description.attrs:
-        product['description'] = og_description['content'].strip()
+    desc_meta_selectors = [
+        ('meta', {'property': 'og:description'}),
+        ('meta', {'name': 'description'}),
+        ('meta', {'itemprop': 'description'})
+    ]
+    
+    for tag, attrs in desc_meta_selectors:
+        element = soup.find(tag, attrs)
+        if element and 'content' in element.attrs and element['content'].strip():
+            product['description'] = element['content'].strip()
+            break
     
     # Try to extract price from meta tags
-    price_meta = soup.find('meta', itemprop='price')
-    if price_meta and 'content' in price_meta.attrs:
-        try:
-            product['price'] = float(price_meta['content'])
-        except (ValueError, TypeError):
-            pass
+    price_meta_selectors = [
+        ('meta', {'itemprop': 'price'}),
+        ('meta', {'property': 'product:price:amount'})
+    ]
+    
+    for tag, attrs in price_meta_selectors:
+        element = soup.find(tag, attrs)
+        if element and 'content' in element.attrs:
+            try:
+                price_str = element['content'].replace(',', '')
+                product['price'] = float(price_str)
+                break
+            except (ValueError, TypeError):
+                pass
     
     # Extract currency
-    currency_meta = soup.find('meta', itemprop='priceCurrency')
-    if currency_meta and 'content' in currency_meta.attrs:
-        product['currency'] = currency_meta['content']
+    currency_meta_selectors = [
+        ('meta', {'itemprop': 'priceCurrency'}),
+        ('meta', {'property': 'product:price:currency'})
+    ]
+    
+    for tag, attrs in currency_meta_selectors:
+        element = soup.find(tag, attrs)
+        if element and 'content' in element.attrs:
+            product['currency'] = element['content']
+            break
     
     return product
+
+def extract_name_from_url(url):
+    """Extract a product name from URL"""
+    if not url:
+        return "Unknown Product"
+        
+    # Remove URL parameters
+    clean_url = url.split('?')[0]
+    
+    # Split by slashes
+    parts = clean_url.split('/')
+    
+    # Look for product name in path parts
+    product_name = None
+    
+    # First look for Amazon product titles which often appear after /dp/ or in the last segment
+    dp_index = -1
+    for i, part in enumerate(parts):
+        if part == 'dp' or part == 'gp' or part == 'product':
+            dp_index = i
+            break
+    
+    # If we found /dp/ or similar, check the segment after it, which is often just a product ID
+    # Then look for descriptive segments after or before that
+    if dp_index >= 0 and dp_index + 2 < len(parts) and parts[dp_index + 2]:
+        descriptive_part = parts[dp_index + 2]
+        clean_part = descriptive_part.replace('-', ' ').replace('_', ' ').replace('+', ' ')
+        if len([w for w in clean_part.split() if len(w) > 2]) >= 2:
+            product_name = ' '.join([w.capitalize() for w in clean_part.split() if len(w) > 1])
+    
+    # If we didn't find a name yet, check all segments
+    if not product_name:
+        for i, part in enumerate(parts):
+            # Skip empty parts or common URL elements
+            if not part or part.lower() in ['www', 'http:', 'https:', 'com', 'in', 'org', 'net']:
+                continue
+                
+            # Look for parts that might be product names
+            clean_part = part.replace('-', ' ').replace('_', ' ').replace('+', ' ')
+            
+            # If this part has 2+ words and isn't just a product ID, it might be a name
+            words = [w for w in clean_part.split() if len(w) > 1]
+            if len(words) >= 2 and not part.startswith('B0'):
+                product_name = ' '.join([w.capitalize() for w in words])
+                break
+    
+    # If we still don't have a name, check for product titles in URL query parameters
+    if not product_name and '?' in url:
+        query = url.split('?')[1]
+        params = query.split('&')
+        for param in params:
+            if '=' in param:
+                key, value = param.split('=', 1)
+                if key.lower() in ['title', 'name', 'product', 'item', 'keyword', 'search']:
+                    clean_value = value.replace('+', ' ').replace('%20', ' ')
+                    if len(clean_value) > 5:  # Minimum reasonable length
+                        words = clean_value.split()
+                        if len(words) >= 2:
+                            product_name = ' '.join([w.capitalize() for w in words if len(w) > 1])
+                            break
+    
+    # If we still don't have a product name, use the product ID if available
+    if not product_name:
+        product_id = None
+        for segment in parts:
+            if segment.startswith('B0') and len(segment) >= 10:
+                product_id = segment
+                break
+        
+        if product_id:
+            # Get domain for a more specific name
+            domain = urlparse(url).netloc
+            if 'amazon' in domain:
+                return f"Amazon Product {product_id}"
+            else:
+                return f"Product {product_id}"
+    
+    return product_name or "Unknown Product"
+
+# Keep mock data functions for development/testing only
+
+def get_mock_product_data(url, existing_metadata=None, custom_product_name=None):
+    """
+    Generate mock product data for testing purposes
+    This ensures the application can function even when scraping fails
+    Only used in development mode when explicitly enabled
+    
+    Args:
+        url (str): The URL from which we tried to scrape
+        existing_metadata (dict, optional): Any metadata that was already extracted
+        custom_product_name (str, optional): User-provided product name
+    """
+    logger.info(f"Generating mock data for URL: {url}")
+    
+    # If user provided a custom product name, use it
+    if custom_product_name:
+        logger.info(f"Using custom product name: {custom_product_name}")
+        name = custom_product_name
+        brand = extract_brand_from_name(name)
+        
+        return {
+            'name': name,
+            'brand': brand,
+            'description': generate_description(name),
+            'price': generate_realistic_price(name),
+            'currency': 'INR',
+            'image_url': 'https://via.placeholder.com/500',
+            'category': guess_category(name),
+            'key_features': generate_features(name),
+            'is_mock_data': True  # Flag to indicate this is mock data
+        }
+    
+    # If we already have metadata, use it as a base for our mock data
+    if existing_metadata and isinstance(existing_metadata, dict):
+        # Create a copy to avoid modifying the original
+        mock_data = existing_metadata.copy()
+        
+        # Ensure all required fields are present
+        if 'name' not in mock_data or not mock_data['name']:
+            mock_data['name'] = extract_name_from_url(url)
+        
+        if 'price' not in mock_data or not mock_data['price']:
+            mock_data['price'] = generate_realistic_price(mock_data.get('name', ''))
+        
+        if 'currency' not in mock_data:
+            mock_data['currency'] = 'INR'
+            
+        if 'description' not in mock_data or not mock_data['description']:
+            mock_data['description'] = generate_description(mock_data.get('name', ''))
+            
+        if 'image_url' not in mock_data or not mock_data['image_url']:
+            mock_data['image_url'] = 'https://via.placeholder.com/500'
+            
+        if 'brand' not in mock_data:
+            mock_data['brand'] = extract_brand_from_name(mock_data.get('name', ''))
+        
+        mock_data['is_mock_data'] = True
+        logger.info(f"Generated enhanced mock data from existing metadata for: {mock_data.get('name')}")
+        return mock_data
+    
+    # Try to extract a meaningful name from the URL
+    url_name = extract_name_from_url(url)
+    if url_name:
+        logger.info(f"Extracted product name from URL: {url_name}")
+        name = url_name
+        brand = extract_brand_from_name(name)
+        
+        return {
+            'name': name,
+            'brand': brand,
+            'description': generate_description(name),
+            'price': generate_realistic_price(name),
+            'currency': 'INR',
+            'image_url': 'https://via.placeholder.com/500',
+            'category': guess_category(name),
+            'key_features': generate_features(name),
+            'is_mock_data': True  # Flag to indicate this is mock data
+        }
+    
+    # Extract product ID from URL for a more specific fallback
+    product_id = None
+    for segment in url.split('/'):
+        if segment.startswith('B0') and len(segment) >= 10:
+            product_id = segment
+            break
+    
+    # Extract keywords from URL segments
+    url_keywords = []
+    for segment in url.split('/'):
+        if segment and segment not in ['www', 'http:', 'https:', 'com', 'in', 'org', 'net', 'dp', 'product', 'gp']:
+            clean_segment = segment.replace('-', ' ').replace('_', ' ').replace('+', ' ')
+            potential_keywords = [w for w in clean_segment.split() if len(w) > 3 and not w.startswith('B0')]
+            url_keywords.extend(potential_keywords)
+    
+    # Determine category from URL
+    url_lower = url.lower()
+    if 'phone' in url_lower or 'mobile' in url_lower or 'smartphone' in url_lower:
+        category = "Smartphone"
+    elif 'laptop' in url_lower or 'notebook' in url_lower:
+        category = "Laptop"
+    elif 'tv' in url_lower or 'television' in url_lower:
+        category = "Television"
+    elif 'watch' in url_lower or 'wearable' in url_lower:
+        category = "Smartwatch"
+    elif 'headphone' in url_lower or 'earphone' in url_lower or 'earbud' in url_lower:
+        category = "Headphones"
+    elif 'camera' in url_lower:
+        category = "Camera"
+    elif 'speaker' in url_lower or 'audio' in url_lower:
+        category = "Speaker"
+    else:
+        category = "Product"
+    
+    # Use keywords to create a more specific name
+    if url_keywords:
+        keywords_str = ' '.join([k.capitalize() for k in url_keywords[:3]])
+        name = f"{keywords_str} {category}"
+    else:
+        # Use product ID if available
+        name = f"{category} {product_id}" if product_id else f"Unknown {category}"
+    
+    brand = extract_brand_from_name(name)
+    
+    return {
+        'name': name,
+        'brand': brand,
+        'description': generate_description(name),
+        'price': generate_realistic_price(name),
+        'currency': 'INR',
+        'image_url': 'https://via.placeholder.com/500',
+        'category': guess_category(name),
+        'key_features': generate_features(name),
+        'is_mock_data': True
+    }
+
+def generate_description(name):
+    """Generate a plausible product description based on name"""
+    if not name:
+        return "High-quality product with premium features and reliable performance."
+    
+    # Look for keywords to generate more specific descriptions
+    name_lower = name.lower()
+    
+    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
+        return "High-quality protein supplement that supports muscle recovery and growth. Ideal for fitness enthusiasts and athletes."
+    
+    if any(term in name_lower for term in ['tv', 'television', 'monitor', 'display']):
+        return "High-definition display with vibrant colors and crisp imagery. Perfect for entertainment and gaming."
+    
+    if any(term in name_lower for term in ['phone', 'smartphone', 'mobile']):
+        return "Feature-rich smartphone with advanced camera capabilities and long battery life. Stay connected with the latest technology."
+    
+    if any(term in name_lower for term in ['laptop', 'notebook', 'computer']):
+        return "Powerful computing device with fast processing and ample storage. Designed for productivity and performance."
+    
+    # Generic fallback
+    return f"Quality {name} with premium features and reliable performance. Designed to meet your needs with exceptional value."
+
+def generate_realistic_price(name):
+    """Generate a realistic price based on product name"""
+    name_lower = name.lower() if name else ""
+    
+    # Price ranges by product category
+    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
+        return round(random.uniform(999, 2499), 0)
+    
+    if any(term in name_lower for term in ['tv', 'television', 'oled', 'qled']):
+        return round(random.uniform(15000, 85000), -1)  # Round to nearest 10
+    
+    if any(term in name_lower for term in ['phone', 'smartphone', 'iphone']):
+        return round(random.uniform(8000, 120000), -2)  # Round to nearest 100
+    
+    if any(term in name_lower for term in ['laptop', 'macbook', 'notebook']):
+        return round(random.uniform(35000, 150000), -2)  # Round to nearest 100
+    
+    if any(term in name_lower for term in ['watch', 'smartwatch']):
+        return round(random.uniform(1500, 35000), -1)  # Round to nearest 10
+    
+    if any(term in name_lower for term in ['book', 'novel', 'textbook']):
+        return round(random.uniform(199, 1499), 0)
+    
+    if any(term in name_lower for term in ['shirt', 'tshirt', 't-shirt', 'clothing']):
+        return round(random.uniform(399, 2999), -1)  # Round to nearest 10
+    
+    # Generic fallback
+    return round(random.uniform(500, 5000), -1)  # Round to nearest 10
+
+def guess_category(name):
+    """Guess product category from name"""
+    name_lower = name.lower() if name else ""
+    
+    if any(term in name_lower for term in ['protein', 'whey', 'supplement', 'vitamin']):
+        return "Health & Fitness"
+    
+    if any(term in name_lower for term in ['tv', 'television', 'monitor', 'display']):
+        return "Electronics > TV & Video"
+    
+    if any(term in name_lower for term in ['phone', 'smartphone', 'mobile']):
+        return "Electronics > Smartphones"
+    
+    if any(term in name_lower for term in ['laptop', 'notebook', 'computer']):
+        return "Electronics > Computers"
+    
+    if any(term in name_lower for term in ['camera', 'dslr', 'mirrorless']):
+        return "Electronics > Cameras"
+    
+    if any(term in name_lower for term in ['book', 'novel', 'textbook']):
+        return "Books"
+    
+    if any(term in name_lower for term in ['shirt', 'tshirt', 't-shirt', 'clothing', 'jacket']):
+        return "Fashion > Clothing"
+    
+    if any(term in name_lower for term in ['shoes', 'sneakers', 'footwear']):
+        return "Fashion > Footwear"
+    
+    return "General Merchandise"
+
+def generate_features(name):
+    """Generate plausible key features based on product name"""
+    name_lower = name.lower() if name else ""
+    
+    if any(term in name_lower for term in ['protein', 'whey', 'supplement']):
+        return ['High protein content', 'Muscle recovery support', 'Great taste']
+    
+    if any(term in name_lower for term in ['tv', 'television']):
+        return ['4K Ultra HD resolution', 'Smart TV functionality', 'Multiple connectivity options']
+    
+    if any(term in name_lower for term in ['phone', 'smartphone']):
+        return ['Advanced camera system', 'All-day battery life', 'Fast processor']
+    
+    if any(term in name_lower for term in ['laptop', 'notebook']):
+        return ['Powerful performance', 'Lightweight design', 'Long battery life']
+    
+    # Generic fallback
+    return ['High quality', 'Durable construction', 'Excellent value']
