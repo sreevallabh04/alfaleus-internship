@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PricePulse API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #alertResult, #compareResult {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .success {
+            background-color: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .error {
+            background-color: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <h1>PricePulse API Test</h1>
+    
+    <div class="card">
+        <h2>Create Price Alert</h2>
+        <div>
+            <label for="productId">Product ID:</label>
+            <input type="number" id="productId" value="1">
+        </div>
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" value="test@example.com">
+        </div>
+        <div>
+            <label for="targetPrice">Target Price:</label>
+            <input type="number" id="targetPrice" value="1200">
+        </div>
+        <button onclick="testCreateAlert()">Create Alert</button>
+        <div id="alertResult"></div>
+        <button onclick="executeAllTests()" style="background-color: #4f46e5; margin-top: 10px;">Auto-Execute All Tests</button>
+    </div>
+    
+    <div class="card">
+        <h2>Compare Prices</h2>
+        <div>
+            <label for="productUrl">Product URL:</label>
+            <input type="text" id="productUrl" value="https://www.amazon.in/Nutrabay-Beginners-Vitamins-Minerals-Supplement/dp/B08T22G7PY">
+        </div>
+        <button onclick="testComparePrice()">Compare Prices</button>
+        <div id="compareResult"></div>
+    </div>
+
+    <script>
+        // Auto-execute all tests when page loads
+        window.onload = function() {
+            setTimeout(executeAllTests, 1000);
+        };
+        
+        const API_BASE_URL = 'http://192.168.1.7:5000/api';
+
+        // Execute all tests automatically
+        async function executeAllTests() {
+            console.log("Executing all tests automatically...");
+            
+            // Test price alerts
+            await testCreateAlert(true);
+            
+            // Test price comparison
+            await testComparePrice(true);
+        }
+        
+        async function testCreateAlert(isAuto = false) {
+            const resultDiv = document.getElementById('alertResult');
+            resultDiv.textContent = 'Creating alert...';
+            resultDiv.className = '';
+
+            const productId = document.getElementById('productId').value;
+            const email = document.getElementById('email').value;
+            const targetPrice = document.getElementById('targetPrice').value;
+
+            console.log(`Testing Price Alert Creation with: Product ID=${productId}, Email=${email}, Target Price=${targetPrice}`);
+            
+            try {
+                console.log("Sending alert creation request to API...");
+                const response = await fetch(`${API_BASE_URL}/alerts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        product_id: parseInt(productId),
+                        email,
+                        target_price: parseFloat(targetPrice)
+                    })
+                });
+                
+                const data = await response.json();
+                console.log("Alert API Response:", data);
+                
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.success) {
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.className = 'error';
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Error in alert creation:", error);
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'error';
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testComparePrice(isAuto = false) {
+            const resultDiv = document.getElementById('compareResult');
+            resultDiv.textContent = 'Comparing prices...';
+            resultDiv.className = '';
+
+            const productUrl = document.getElementById('productUrl').value;
+
+            console.log(`Testing Price Comparison with URL: ${productUrl}`);
+            
+            try {
+                console.log("Sending comparison request to API...");
+                const response = await fetch(`${API_BASE_URL}/compare`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: productUrl
+                    })
+                });
+                
+                const data = await response.json();
+                console.log("Comparison API Response:", data);
+                
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.success) {
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.className = 'error';
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Error in price comparison:", error);
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'error';
+                return { success: false, error: error.message };
+            }
+        }
+    </script>
+</body>
+</html>
