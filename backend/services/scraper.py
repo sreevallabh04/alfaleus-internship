@@ -296,10 +296,21 @@ def scrape_amazon_product(url):
                     if key not in aggregated_data or not aggregated_data[key]:
                         aggregated_data[key] = value
                 
-                # If we now have both name and price, we can return
-                if 'name' in aggregated_data and 'price' in aggregated_data:
+                # If we now have both name and price, we can proceed (but don't return yet)
+                if 'name' in aggregated_data and 'price' in aggregated_data and 'extraction_method' not in aggregated_data:
                     aggregated_data['extraction_method'] = 'meta_tags'
-                    return aggregated_data
+                    logger.info("Successfully extracted name and price from meta tags")
+            
+            # Method 5: Extract from dynamic price API
+            if product_id and ('price' not in aggregated_data or not aggregated_data['price']):
+                logger.info("Trying to extract price from dynamic price API")
+                dynamic_price = extract_from_dynamic_price_api(product_id, session, modified_headers)
+                if dynamic_price:
+                    logger.info(f"Successfully extracted price from dynamic API: {dynamic_price}")
+                    aggregated_data['price'] = dynamic_price
+                    aggregated_data['currency'] = 'INR'
+                    if 'extraction_method' not in aggregated_data:
+                        aggregated_data['extraction_method'] = 'dynamic_price_api'
             
             # Method 4: Extract from title tag as last resort
             logger.info("Trying to extract data from page title")
