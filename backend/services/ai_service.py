@@ -329,8 +329,11 @@ def extract_brand_from_name(name):
 
 def search_other_platforms(metadata):
     """
-    Search for the exact same or equivalent product on other Indian e-commerce platforms.
+    Act as a smart shopping assistant to find the same or exact equivalent product
+    on other Indian e-commerce platforms.
+    
     Returns a list of dictionaries with website, product_title, price, and url.
+    Each result is verified to be the exact same product or an official variant.
     """
     if not metadata or 'name' not in metadata:
         logger.error("Invalid metadata for product comparison")
@@ -340,15 +343,18 @@ def search_other_platforms(metadata):
     platforms = ['Flipkart', 'Snapdeal', 'Reliance Digital', 'Tata Cliq', 'Croma']
     
     # Extract product details for search context
-    product_name = metadata.get('name', '')
-    product_brand = metadata.get('brand', '')
-    product_model = metadata.get('model', '')
+    product_name = metadata.get('name', '').strip()
+    product_brand = metadata.get('brand', '').strip()
+    product_model = metadata.get('model', '').strip()
     product_features = metadata.get('key_features', [])
     product_price = metadata.get('price')
     
     if not product_name:
         logger.error("Missing product name for comparison search")
         return []
+    
+    logger.info(f"Starting product comparison for: {product_name}")
+    logger.info(f"Brand: {product_brand}, Model: {product_model}")
     
     # Extract keywords from the product title for better matching
     keywords = extract_keywords_from_title(product_name, product_brand, product_model)
@@ -376,41 +382,74 @@ def search_other_platforms(metadata):
         'Croma': f"https://www.croma.com/searchB?q={search_query}"
     }
     
-    # Function to check if a product match is genuine based on keywords
-    def is_genuine_match(match_title, original_title, brand, model):
+    # Enhanced function to check if a product match is genuine based on keywords
+    def is_genuine_match(match_title, original_title, brand, model, features=None):
         """
         Check if a product match is genuine by comparing key attributes
-        Returns True if it's a genuine match, False otherwise
+        Returns (is_match, confidence_score)
         """
         if not match_title:
-            return False
+            return False, 0.0
             
         match_title = match_title.lower()
         original_title = original_title.lower() if original_title else ""
         brand = brand.lower() if brand else ""
         model = model.lower() if model else ""
         
-        # Must match brand
-        if brand and brand not in match_title:
-            return False
+        # Start with base confidence
+        confidence = 0.5
+        
+        # Brand match is critical
+        if brand:
+            if brand in match_title:
+                confidence += 0.2
+            else:
+                # Brand mismatch is a strong indicator it's not the same product
+                return False, 0.0
             
-        # If model is available, it must be in the match title
-        if model and model not in match_title:
-            return False
+        # Model match is also critical if available
+        if model:
+            if model in match_title:
+                confidence += 0.2
+            else:
+                # Model mismatch usually means different product
+                return False, 0.1
             
-        # Calculate a similarity score based on keyword matches
+        # Calculate keyword matches
         matched_keywords = 0
+        total_keywords = len(keywords) if keywords else 1
+        
         for keyword in keywords:
             if keyword in match_title:
                 matched_keywords += 1
                 
-        # Calculate percentage of keywords matched
-        keyword_match_percentage = matched_keywords / len(keywords) if keywords else 0
+        # Weight keyword matches
+        keyword_match_percentage = matched_keywords / total_keywords
+        confidence += keyword_match_percentage * 0.3
         
-        # Must match at least 75% of keywords to be considered genuine
-        return keyword_match_percentage >= 0.75
+        # Check for key feature matches if available
+        if features and isinstance(features, list):
+            feature_match_count = 0
+            for feature in features:
+                feature_keywords = extract_keywords_from_title(feature)
+                feature_match_score = 0
+                for kw in feature_keywords:
+                    if kw in match_title:
+                        feature_match_score += 1
+                
+                if feature_match_score / max(1, len(feature_keywords)) > 0.5:
+                    feature_match_count += 1
+            
+            # Add feature match confidence
+            if len(features) > 0:
+                confidence += (feature_match_count / len(features)) * 0.1
+        
+        # Final determination
+        is_match = confidence >= 0.75
+        
+        return is_match, min(1.0, confidence)  # Cap confidence at 1.0
     
-    # Prepare search context from metadata
+    # Prepare search context from metadata with more detailed information
     search_context = {
         "title": product_name,
         "brand": product_brand or "Unknown",
@@ -419,22 +458,40 @@ def search_other_platforms(metadata):
         "price": f"₹{product_price}" if product_price else "Not available"
     }
     
+    # Add any critical fields that must match for exact product identification
+    critical_identifiers = []
+    if product_brand:
+        critical_identifiers.append(f"Brand: {product_brand}")
+    if product_model:
+        critical_identifiers.append(f"Model: {product_model}")
+    
+    # Extract color, capacity, size if mentioned in product name
+    color_match = re.search(r'\b(Black|White|Blue|Red|Green|Yellow|Purple|Pink|Gold|Silver|Gray|Grey)\b', product_name, re.IGNORECASE)
+    if color_match:
+        critical_identifiers.append(f"Color: {color_match.group(0)}")
+    
+    # Look for storage capacity
+    storage_match = re.search(r'\b(\d+)\s*(GB|TB|MB)\b', product_name, re.IGNORECASE)
+    if storage_match:
+        critical_identifiers.append(f"Storage: {storage_match.group(0)}")
+    
+    # Look for RAM
+    ram_match = re.search(r'\b(\d+)\s*GB\s*RAM\b', product_name, re.IGNORECASE)
+    if ram_match:
+        critical_identifiers.append(f"RAM: {ram_match.group(0)}")
+    
+    search_context["critical_identifiers"] = critical_identifiers
+    
     # If we have access to an LLM API, use it to generate more precise product matches
     if GROQ_API_KEY or OPENAI_API_KEY:
         try:
-            # Mark which information is critical for exact matching
-            critical_fields = []
-            if product_brand:
-                critical_fields.append(f"Brand: {product_brand}")
-            if product_model:
-                critical_fields.append(f"Model: {product_model}")
-                
-            critical_info = "\n".join(critical_fields) if critical_fields else "N/A"
-            
-            # Prepare detailed product information for the LLM
+            # Prepare detailed product information for the LLM with more specific instructions
             features_text = ""
             if product_features:
                 features_text = "\n".join([f"- {feature}" for feature in product_features])
+            
+            # Include critical identifiers in the product info
+            critical_info = "\n".join(search_context["critical_identifiers"]) if search_context["critical_identifiers"] else "No specific identifiers available"
             
             product_info = f"""
             Exact Product Title: {product_name}
@@ -443,6 +500,9 @@ def search_other_platforms(metadata):
             Price: ₹{product_price if product_price else 'Not available'}
             Key Features:
             {features_text if features_text else "Not available"}
+            
+            CRITICAL IDENTIFIERS (MUST MATCH):
+            {critical_info}
             """
             
             # Determine which API to use (prefer Groq if available)
@@ -457,41 +517,43 @@ def search_other_platforms(metadata):
             
             # Create a detailed prompt for finding exact equivalent products
             prompt = f"""
-            You are a smart shopping assistant. Given a product scraped from Amazon, search for the SAME or EXACT EQUIVALENT product on other Indian e-commerce sites like Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma.
+            You are a smart shopping assistant. Given a product scraped from Amazon, search for the **same or exact equivalent product** on other Indian e-commerce sites like Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma.
 
             Use the following information as your search context:
             {product_info}
 
-            Your goal is to find the SAME MODEL or CLOSEST OFFICIAL VARIANT, not just similar category items.
+            ❗ Your goal is to find the **same model** or **closest official variant**, not just similar category items.
 
             For each of these platforms: Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma, provide:
-            1. The exact product title as it would appear on that platform
-            2. The estimated price in INR (if you can infer it)
-            3. The product URL (search URL with the product name)
+            1. The exact product title as it would appear on that platform (with exact model number and specifications matching the original)
+            2. The estimated price in INR (realistic market price)
+            3. The product URL (either direct product URL or search URL that would lead to this specific product)
 
             Return a list of matches in this JSON format:
             [
               {{
-                "website": "Flipkart",
-                "product_title": "Complete product title as it would appear",
+                "website": "Flipkart", 
+                "product_title": "Realme Narzo 60X 5G (Nebula Purple, 128 GB)", 
                 "price": "₹11,999",
-                "url": "https://www.flipkart.com/search?q=product+name"
+                "url": "https://www.flipkart.com/product-link"
               }},
               ...
             ]
 
-            CRITICAL RULES:
-            - Only include products that are the EXACT SAME model or official variant
+            ⚠️ CRITICAL RULES:
+            - Only include the EXACT SAME product with same specifications (color, storage, etc.)
+            - If a specification is mentioned in the original title (e.g., "8GB RAM"), it MUST match in your results
+            - ALL critical identifiers MUST be present in your matches
             - Do not include unrelated or generic products
-            - All URLs must point to valid product listings that match the brand and model
-            - Price should be a realistic estimate based on the given information
+            - All URLs must point to valid product listings or specific search results
+            - Price should be a realistic market price (check typical price difference between Amazon and each platform)
             - Format prices with ₹ symbol and thousands separators (like ₹11,999)
             
             Your response must be ONLY a valid JSON array as shown above, with no additional text, explanations, or formatting.
             """
             
             data = {
-                'model': 'llama3-8b-8192',
+                'model': model,
                 'messages': [
                     {'role': 'system', 'content': 'You are a helpful assistant that specializes in e-commerce product search optimization using exact keywords without paraphrasing.'},
                     {'role': 'user', 'content': prompt}
@@ -529,33 +591,57 @@ def search_other_platforms(metadata):
                 
                 # Transform the AI response into our expected format
                 comparisons = []
+                
                 for product_match in ai_data:
-                    website = product_match.get('website')
-                    product_title = product_match.get('product_title')
-                    price = product_match.get('price')
-                    url = product_match.get('url')
+                    website = product_match.get('website', '').strip()
+                    product_title = product_match.get('product_title', '').strip()
+                    price_str = product_match.get('price', '').strip()
+                    url = product_match.get('url', '').strip()
                     
                     # Skip incomplete entries
                     if not website or not product_title or not url:
+                        logger.warning(f"Skipping incomplete product match: {product_match}")
                         continue
                     
-                    # Verify this is a genuine match
-                    if not is_genuine_match(product_title, product_name, product_brand, product_model):
-                        logger.warning(f"Filtered out non-genuine match: {product_title}")
+                    # Verify this is a genuine match using our enhanced logic
+                    is_match, confidence = is_genuine_match(
+                        product_title, 
+                        product_name, 
+                        product_brand, 
+                        product_model,
+                        product_features
+                    )
+                    
+                    if not is_match:
+                        logger.warning(f"Filtered out non-genuine match: {product_title} (confidence: {confidence:.2f})")
                         continue
+                        
+                    logger.info(f"Found genuine match on {website}: {product_title} (confidence: {confidence:.2f})")
                     
                     # Create a comparison entry in the format expected by the frontend
                     comparison_entry = {
                         'platform': website,
                         'url': url,
-                        'price': price.replace('₹', '').replace(',', '') if price and price.startswith('₹') else None,
+                        'price': None,  # Default to null, will update below
                         'currency': 'INR',
                         'in_stock': True,  # Assume in stock
                         'last_checked': datetime.now().isoformat(),
                         'is_genuine_match': True,
-                        'match_confidence': 0.9,  # High confidence for AI-generated matches
+                        'match_confidence': confidence,
                         'product_title': product_title  # Store the full product title
                     }
+                    
+                    # Process price with proper error handling
+                    if price_str:
+                        # Extract numeric price value using regex
+                        price_match = re.search(r'₹\s*([\d,]+)', price_str)
+                        if price_match:
+                            try:
+                                # Convert to numeric format for frontend
+                                numeric_price = float(price_match.group(1).replace(',', ''))
+                                comparison_entry['price'] = numeric_price
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Failed to parse price '{price_str}': {str(e)}")
                     
                     comparisons.append(comparison_entry)
                 
@@ -587,8 +673,8 @@ def search_other_platforms(metadata):
             'currency': 'INR',
             'in_stock': None,
             'last_checked': datetime.now().isoformat(),
-            'is_genuine_match': True,  # Mark basic comparisons as genuine by default
-            'match_confidence': 0.7,  # Medium confidence for basic search
+            'is_genuine_match': False,  # Mark basic comparisons as not verified
+            'match_confidence': 0.5,  # Medium-low confidence for basic search
             'product_title': f"{product_brand} {product_name}" if product_brand else product_name
         })
     

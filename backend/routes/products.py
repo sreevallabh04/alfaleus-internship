@@ -44,34 +44,40 @@ def get_all_products_route():
 
 @products_bp.route('/<int:product_id>', methods=['GET'])
 def get_product_route(product_id):
-    """Get a specific product with its price history"""
+    """Get a specific product with its price history grouped by platform"""
     try:
         product = run_async(get_product_by_id(product_id))
         if not product:
+            logger.warning(f"Product with ID {product_id} not found")
             return jsonify({
                 'success': False,
                 'message': f'Product with ID {product_id} not found'
             }), 404
-        
-        # Get price history
+
+        # Get all price history records for the product
         price_records = run_async(get_price_history(product_id))
-        
+
+        # Group price records by platform
+        price_history_grouped = {}
+        for record in price_records:
+            platform = record.get('platform', 'Unknown') # Default to 'Unknown' if platform is missing
+            if platform not in price_history_grouped:
+                price_history_grouped[platform] = []
+            price_history_grouped[platform].append(record)
+
         # Product is already in dict format from database.py
         product_dict = product
-        
-        # Price records are already in dict format from database.py
-        price_history = price_records
-        
+
         return jsonify({
             'success': True,
             'product': product_dict,
-            'price_history': price_history
+            'price_history': price_history_grouped # Return grouped data
         }), 200
     except Exception as e:
-        logger.error(f"Error fetching product {product_id}: {str(e)}")
+        logger.error(f"Error fetching product {product_id} with grouped history: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'Failed to fetch product with ID {product_id}',
+            'message': f'Failed to fetch product details and history for ID {product_id}',
             'error': str(e)
         }), 500
 

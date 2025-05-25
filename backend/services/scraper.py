@@ -412,41 +412,180 @@ def scrape_amazon_product(url):
         
         return aggregated_data
     
-    # Last resort: Try to extract meaningful info directly from the URL
-    logger.warning("All scraping attempts failed, extracting from URL as last resort")
-    
-    # Get product ID if we didn't extract it earlier
-    if not product_id:
-        for segment in url_path.split('/'):
-            if segment.startswith('B0') and len(segment) >= 10:
-                product_id = segment
-                break
-    
-    # Extract a meaningful name from URL components
-    url_name = extract_name_from_url(url)
-    
-    if url_name:
-        logger.info(f"Extracted name from URL: {url_name}")
-        result = {
-            'name': url_name,
-            'description': f"Product details for {url_name}",
-            'url': url,
-            'is_url_extracted': True,  # Flag to indicate this is URL-extracted data
-            'extraction_method': 'url_fallback'
-        }
+    # Last resort: Try more aggressive approach to get product data
+    if product_id:
+        logger.warning("All standard scraping attempts failed, trying aggressive fallback methods")
         
-        if product_id:
-            result['product_id'] = product_id
+        # Try a direct product page with mobile user agent
+        try:
+            mobile_headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'
+            }
             
-        return result
+            # Try the mobile version of the site
+            mobile_url = f"https://www.amazon.in/gp/aw/d/{product_id}"
+            logger.info(f"Trying mobile URL: {mobile_url}")
+            
+            mobile_response = requests.get(mobile_url, headers=mobile_headers, timeout=10)
+            if mobile_response.status_code == 200:
+                mobile_soup = BeautifulSoup(mobile_response.content, 'html.parser')
+                
+                # Look for product title in mobile version
+                mobile_title = mobile_soup.select_one('#title, .a-text-normal')
+                if mobile_title and mobile_title.text.strip():
+                    product_name = mobile_title.text.strip()
+                    logger.info(f"Successfully extracted product name from mobile site: {product_name}")
+                    
+                    # Try to get image and price
+                    mobile_image = mobile_soup.select_one('img.a-dynamic-image, #landingImage')
+                    mobile_price = mobile_soup.select_one('.a-price, .a-color-price')
+                    
+                    result = {
+                        'name': product_name,
+                        'description': f"Product details for {product_name}",
+                        'url': url,
+                        'product_id': product_id,
+                        'extraction_method': 'mobile_site_fallback'
+                    }
+                    
+                    if mobile_image and 'src' in mobile_image.attrs:
+                        result['image_url'] = mobile_image['src']
+                    
+                    if mobile_price and mobile_price.text.strip():
+                        price_text = mobile_price.text.strip()
+                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                        if price_match:
+                            try:
+                                result['price'] = float(price_match.group().replace(',', ''))
+                                result['currency'] = 'INR'
+                            except (ValueError, AttributeError):
+                                result['price'] = None
+                    
+                    return result
+        except Exception as e:
+            logger.error(f"Error in mobile site fallback: {str(e)}")
+        
+        # Try direct API access as a last resort
+        try:
+            api_url = f"https://www.amazon.in/hz/ajax/render/dpMobileWeb?deviceType=web&asin={product_id}"
+            api_headers = get_enhanced_headers()
+            api_headers['X-Requested-With'] = 'XMLHttpRequest'
+            
+            logger.info(f"Trying API URL: {api_url}")
+            api_response = requests.get(api_url, headers=api_headers, timeout=15)
+            
+            if api_response.status_code == 200 and api_response.text:
+                # Try to extract JSON data
+                try:
+                    api_data = json.loads(api_response.text)
+                    if 'dpHtml' in api_data:
+                        api_soup = BeautifulSoup(api_data['dpHtml'], 'html.parser')
+                        api_title = api_soup.select_one('#title, .a-text-normal, .product-title')
+                        
+                        if api_title and api_title.text.strip():
+                            product_name = api_title.text.strip()
+                            logger.info(f"Successfully extracted product name from API: {product_name}")
+                            
+                            result = {
+                                'name': product_name,
+                                'description': f"Product details for {product_name}",
+                                'url': url,
+                                'product_id': product_id,
+                                'extraction_method': 'api_fallback'
+                            }
+                            
+                            # Try to get price
+                            api_price = api_soup.select_one('.a-price, .a-color-price')
+                            if api_price and api_price.text.strip():
+                                price_text = api_price.text.strip()
+                                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                                if price_match:
+                                    try:
+                                        result['price'] = float(price_match.group().replace(',', ''))
+                                        result['currency'] = 'INR'
+                                    except (ValueError, AttributeError):
+                                        result['price'] = None
+                            
+                            return result
+                except json.JSONDecodeError:
+                    logger.error("Failed to parse API response as JSON")
+        except Exception as e:
+            logger.error(f"Error in API fallback: {str(e)}")
+            
+        # If we still don't have product data, try another approach with different headers
+        try:
+            # Completely different user agent and headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-GB,en;q=0.9,en-US;q=0.8',
+                'Cache-Control': 'max-age=0',
+                'Connection': 'keep-alive',
+                'Sec-Ch-Ua': '"Microsoft Edge";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            # Try different URL pattern
+            direct_url = f"https://www.amazon.in/dp/{product_id}/"
+            logger.info(f"Trying final attempt with URL: {direct_url}")
+            
+            response = requests.get(direct_url, headers=headers, timeout=20)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                # Check title tag at minimum
+                title_tag = soup.title
+                if title_tag and title_tag.string:
+                    title_text = title_tag.string.strip()
+                    # Remove common Amazon suffixes
+                    for suffix in [" | Amazon.in", " | Amazon.com", " - Amazon", "Amazon.in", "Amazon.com"]:
+                        if title_text.endswith(suffix):
+                            title_text = title_text[:-len(suffix)].strip()
+                    
+                    if title_text and len(title_text) > 5 and title_text != f"Amazon.in: {product_id}":
+                        logger.info(f"Extracted product name from title tag: {title_text}")
+                        
+                        result = {
+                            'name': title_text,
+                            'description': f"Product details for {title_text}",
+                            'url': url,
+                            'product_id': product_id,
+                            'extraction_method': 'title_tag_fallback',
+                            'price': None,
+                            'currency': 'INR'
+                        }
+                        
+                        return result
+        except Exception as e:
+            logger.error(f"Error in final fallback attempt: {str(e)}")
     
-    # If we get here, we've exhausted all options and failed to get meaningful data
+    # If we get here, truly nothing worked - return a clear error
     logger.error(f"Complete failure to extract any product data from {url}")
+    
+    # Instead of returning "Amazon Product {ASIN}", return a clear error
     return {
         'scraping_failed': True,
         'url': url,
-        'error': 'Failed to extract any product data after multiple methods',
-        'is_real_data': False
+        'error': 'Unable to extract product name from Amazon. Their anti-bot measures might be active.',
+        'is_real_data': False,
+        'product_id': product_id
     }
 
 def get_enhanced_headers():
@@ -565,54 +704,285 @@ def extract_from_price_data_script(soup, product_id):
 
 def extract_from_dynamic_price_api(product_id, session, headers):
     """
-    Extract price from Amazon's dynamic price API
-    This makes a separate request to Amazon's price API
+    Extract price from Amazon's dynamic price API with enhanced reliability
+    Uses multiple API endpoints and consensus checking for increased accuracy
     """
     if not product_id:
         return None
         
     try:
-        # Use different API URLs
+        # Use a comprehensive set of API URLs with varying formats for better coverage
         api_urls = [
+            # Standard product offer display AJAX endpoint
             f"https://www.amazon.in/gp/product/ajax/ref=dp_aod_unknown_mbc?asin={product_id}&m=&qid=&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=&pc=dp",
-            f"https://www.amazon.in/gp/aod/ajax/ref=aod_page_1?asin={product_id}&pc=dp"
+            
+            # All offers display AJAX endpoint
+            f"https://www.amazon.in/gp/aod/ajax/ref=aod_page_1?asin={product_id}&pc=dp",
+            
+            # Price block display API
+            f"https://www.amazon.in/gp/product/ajax/price-load/ref=dp_price_load?asin={product_id}",
+            
+            # Mobile web render API
+            f"https://www.amazon.in/hz/ajax/render/dpMobileWeb?deviceType=web&asin={product_id}&refTag=spkl_1_spkl",
+            
+            # Price calculation API
+            f"https://www.amazon.in/twister/api/priceCalculation?asin={product_id}&deviceType=web&exp=desktop-twister-prices",
+            
+            # Deals API that sometimes contains price info
+            f"https://www.amazon.in/gp/deals/ajax/get-all-deals?asin={product_id}",
+            
+            # Buy box API
+            f"https://www.amazon.in/gp/product/ajax/buybox/ref=dp_buybox?asin={product_id}"
         ]
+        
+        # Track all collected prices for consensus analysis
+        collected_prices = []
         
         for api_url in api_urls:
             try:
                 logger.info(f"Trying dynamic price API: {api_url}")
                 
-                # Add specific headers for AJAX request
+                # Add specific headers for AJAX request, varying by endpoint
                 ajax_headers = headers.copy() if headers else get_enhanced_headers()
                 ajax_headers['X-Requested-With'] = 'XMLHttpRequest'
                 ajax_headers['Referer'] = f"https://www.amazon.in/dp/{product_id}"
                 
-                response = session.get(api_url, headers=ajax_headers, timeout=10)
+                # Add some additional headers to appear more like a regular browser
+                if 'twister' in api_url:
+                    ajax_headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
+                    ajax_headers['Content-Type'] = 'application/json'
+                else:
+                    ajax_headers['Accept'] = 'text/html, */*; q=0.01'
+                
+                # Add random cookies to appear more like a real browser session
+                cookies = {
+                    'session-id': f"{random.randint(100000000, 999999999)}",
+                    'session-token': f"random{random.randint(10000, 99999)}",
+                    'ubid-acbin': f"{random.randint(250, 300)}-{random.randint(1000000, 9999999)}-{random.randint(1000000, 9999999)}",
+                    'csm-hit': f"tb:{random.randint(10000000000000000000, 99999999999999999999)}+s-{random.randint(10000000000000000000, 99999999999999999999)}|{int(time.time()*1000)}",
+                }
+                ajax_headers['Cookie'] = '; '.join([f"{k}={v}" for k, v in cookies.items()])
+                
+                # Add a small delay to avoid rate limiting
+                time.sleep(random.uniform(0.5, 1.5))
+                
+                # Increase timeout for potentially slow API responses
+                response = session.get(api_url, headers=ajax_headers, timeout=15)
+                
+                # Log response details for debugging
+                logger.debug(f"API response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}, Length: {len(response.text)}")
+                
                 if response.status_code == 200:
-                    soup = BeautifulSoup(response.content, 'html.parser')
+                    # First, try to parse as JSON if it looks like JSON
+                    if 'application/json' in response.headers.get('Content-Type', '') or response.text.strip().startswith('{'):
+                        try:
+                            json_data = response.json()
+                            logger.debug(f"Successfully parsed JSON response from {api_url}")
+                            
+                            # Process JSON response for price information
+                            if isinstance(json_data, dict):
+                                # Check various JSON structures that might contain price
+                                
+                                # 1. Direct price fields
+                                price_fields = ['priceAmount', 'price', 'buyingPrice', 'displayPrice', 'salePrice', 'amount']
+                                for field in price_fields:
+                                    if field in json_data:
+                                        if isinstance(json_data[field], (int, float)):
+                                            price_value = float(json_data[field])
+                                            if 100 <= price_value <= 500000:  # Reasonable price range
+                                                logger.info(f"Extracted price from JSON field '{field}': ₹{price_value}")
+                                                collected_prices.append(('json_direct_field', price_value))
+                                                break
+                                        elif isinstance(json_data[field], str):
+                                            # Handle string with currency symbol or formatting
+                                            price_match = re.search(r'[\d,]+\.?\d*', json_data[field].replace(',', ''))
+                                            if price_match:
+                                                try:
+                                                    price_value = float(price_match.group().replace(',', ''))
+                                                    if 100 <= price_value <= 500000:
+                                                        logger.info(f"Extracted price from JSON string field '{field}': ₹{price_value}")
+                                                        collected_prices.append(('json_string_field', price_value))
+                                                        break
+                                                except (ValueError, AttributeError):
+                                                    pass
+                                
+                                # 2. Look for nested price objects
+                                if 'offers' in json_data and isinstance(json_data['offers'], list) and json_data['offers']:
+                                    for offer in json_data['offers']:
+                                        if isinstance(offer, dict) and 'price' in offer:
+                                            if isinstance(offer['price'], (int, float)):
+                                                price_value = float(offer['price'])
+                                                if 100 <= price_value <= 500000:
+                                                    logger.info(f"Extracted price from offers array: ₹{price_value}")
+                                                    collected_prices.append(('offers_array', price_value))
+                                                    break
+                                            elif isinstance(offer['price'], str):
+                                                price_match = re.search(r'[\d,]+\.?\d*', offer['price'].replace(',', ''))
+                                                if price_match:
+                                                    try:
+                                                        price_value = float(price_match.group().replace(',', ''))
+                                                        if 100 <= price_value <= 500000:
+                                                            logger.info(f"Extracted price from offers array string: ₹{price_value}")
+                                                            collected_prices.append(('offers_array_string', price_value))
+                                                            break
+                                                    except (ValueError, AttributeError):
+                                                        pass
+                                
+                                # 3. Deep search for any field containing price information
+                                def search_json_for_prices(obj, path=""):
+                                    if isinstance(obj, dict):
+                                        for key, value in obj.items():
+                                            # Check for price-related field names
+                                            if any(price_term in key.lower() for price_term in ['price', 'cost', 'amount', 'value']):
+                                                if isinstance(value, (int, float)) and 100 <= value <= 500000:
+                                                    logger.info(f"Found price in nested JSON at {path}.{key}: ₹{value}")
+                                                    collected_prices.append(('nested_json', value))
+                                                elif isinstance(value, str):
+                                                    price_match = re.search(r'[\d,]+\.?\d*', value.replace(',', ''))
+                                                    if price_match:
+                                                        try:
+                                                            price_value = float(price_match.group().replace(',', ''))
+                                                            if 100 <= price_value <= 500000:
+                                                                logger.info(f"Found price in nested JSON string at {path}.{key}: ₹{price_value}")
+                                                                collected_prices.append(('nested_json_string', price_value))
+                                                        except (ValueError, AttributeError):
+                                                            pass
+                                            # Recursively search nested objects
+                                            search_json_for_prices(value, f"{path}.{key}" if path else key)
+                                    elif isinstance(obj, list):
+                                        for i, item in enumerate(obj):
+                                            search_json_for_prices(item, f"{path}[{i}]")
+                                
+                                # Start recursive price search for complex JSON responses
+                                search_json_for_prices(json_data)
+                                
+                                # 4. Check for HTML in dpHtml field (mobile web render)
+                                if 'dpHtml' in json_data and isinstance(json_data['dpHtml'], str):
+                                    html_soup = BeautifulSoup(json_data['dpHtml'], 'html.parser')
+                                    # Search for price elements within the HTML
+                                    extract_prices_from_html(html_soup, 'dpHtml_content', collected_prices)
+                        except json.JSONDecodeError:
+                            logger.debug(f"Response from {api_url} is not valid JSON")
                     
-                    # Extract price from the API response
-                    price_elements = soup.select('.a-price .a-offscreen, .a-color-price, .a-price')
-                    for element in price_elements:
-                        price_text = element.text.strip()
-                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
-                        if price_match:
-                            try:
-                                price_str = price_match.group().replace(',', '')
-                                price = float(price_str)
-                                # Sanity check - price must be reasonable
-                                if 10 <= price <= 500000:  # Reasonable price range in INR
-                                    logger.info(f"Successfully extracted price from dynamic API: {price}")
-                                    return price
-                            except (ValueError, AttributeError):
-                                continue
+                    # Process HTML responses
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    extract_prices_from_html(soup, api_url, collected_prices)
+                    
             except Exception as e:
                 logger.warning(f"Error with dynamic price API URL {api_url}: {str(e)}")
                 continue
+        
+        # Analyze collected prices and return the most reliable one
+        if collected_prices:
+            # Log all collected prices for debugging
+            logger.info(f"Collected {len(collected_prices)} price points: {[price for _, price in collected_prices]}")
+            
+            # If we have multiple prices, look for consensus
+            if len(collected_prices) > 1:
+                # Group by price value and count occurrences
+                price_counts = {}
+                for _, price in collected_prices:
+                    # Round to nearest rupee to handle minor floating point differences
+                    rounded_price = round(price)
+                    price_counts[rounded_price] = price_counts.get(rounded_price, 0) + 1
+                
+                # Sort by frequency (most common first)
+                sorted_prices = sorted(price_counts.items(), key=lambda x: x[1], reverse=True)
+                most_common_price = sorted_prices[0][0]
+                
+                logger.info(f"Selected most common price: ₹{most_common_price} (appeared {sorted_prices[0][1]} times)")
+                return float(most_common_price)
+            else:
+                # If only one price, return it
+                source, price = collected_prices[0]
+                logger.info(f"Using single price from {source}: ₹{price}")
+                return price
+                
     except Exception as e:
         logger.error(f"Error extracting from dynamic price API: {str(e)}")
     
     return None
+
+def extract_prices_from_html(soup, source_info, collected_prices):
+    """
+    Helper function to extract prices from HTML content
+    Used by the dynamic price API function
+    """
+    # Check for price elements with multiple selectors
+    price_selectors = [
+        '.a-price .a-offscreen',
+        '.a-color-price',
+        '.a-price',
+        '.a-text-price',
+        '.priceToPay',
+        '[data-feature-name="priceInsideBuyBox"]',
+        '.offer-price',
+        '.a-price-whole',
+        '#priceblock_ourprice',
+        '#priceblock_dealprice'
+    ]
+    
+    for selector in price_selectors:
+        price_elements = soup.select(selector)
+        for element in price_elements:
+            price_text = element.text.strip()
+            
+            # Skip elements that clearly aren't prices
+            if len(price_text) < 2 or not re.search(r'[\d\.,₹$£€]', price_text):
+                continue
+                
+            # Enhanced price extraction for rupees
+            if '₹' in price_text:
+                price_match = re.search(r'₹\s*([\d,]+\.?\d*)', price_text)
+                if price_match:
+                    try:
+                        price_value = float(price_match.group(1).replace(',', ''))
+                        if 100 <= price_value <= 500000:
+                            logger.info(f"Extracted ₹ price from {selector} in {source_info}: ₹{price_value}")
+                            collected_prices.append((f'html_{selector}', price_value))
+                            return  # Return after finding first valid price
+                    except (ValueError, AttributeError):
+                        continue
+            else:
+                # General pattern for numbers
+                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                if price_match:
+                    try:
+                        price_value = float(price_match.group().replace(',', ''))
+                        if 100 <= price_value <= 500000:
+                            logger.info(f"Extracted price from {selector} in {source_info}: ₹{price_value}")
+                            collected_prices.append((f'html_{selector}', price_value))
+                            return  # Return after finding first valid price
+                    except (ValueError, AttributeError):
+                        continue
+    
+    # Look for text nodes containing price indicators
+    price_indicators = ['₹', 'Rs.', 'Rs ', 'INR', 'Price:', 'MRP:']
+    for indicator in price_indicators:
+        price_texts = [text for text in soup.stripped_strings if indicator in text]
+        for price_text in price_texts:
+            if '₹' in price_text:
+                price_match = re.search(r'₹\s*([\d,]+\.?\d*)', price_text)
+                if price_match:
+                    try:
+                        price_value = float(price_match.group(1).replace(',', ''))
+                        if 100 <= price_value <= 500000:
+                            logger.info(f"Extracted price from text node in {source_info}: ₹{price_value}")
+                            collected_prices.append(('text_node', price_value))
+                            return  # Return after finding first valid price
+                    except (ValueError, AttributeError):
+                        continue
+            else:
+                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                if price_match:
+                    try:
+                        price_value = float(price_match.group().replace(',', ''))
+                        if 100 <= price_value <= 500000:
+                            logger.info(f"Extracted general price from text node in {source_info}: ₹{price_value}")
+                            collected_prices.append(('text_node', price_value))
+                            return  # Return after finding first valid price
+                    except (ValueError, AttributeError):
+                        continue
 
 def extract_key_features(soup):
     """
@@ -733,46 +1103,206 @@ def extract_from_html_elements(soup):
             product['name'] = name_element.text.strip()
             break
     
-    # Extract product price - try multiple selectors
-    price_selectors = [
-        '#priceblock_ourprice',
-        '#priceblock_dealprice',
-        '.a-price .a-offscreen',
-        '.a-price',
-        '.priceToPay',
-        '.a-color-price',
-        '#price',
-        '[data-a-color="price"]'
+    # ENHANCED: More comprehensive price extraction with priority and validation
+    # First, try to find the primary price with high precision selectors
+    primary_price_selectors = [
+        '.priceToPay .a-offscreen',  # Amazon's current primary price selector
+        '.priceToPay span.a-price-whole',  # Whole number part
+        '#priceblock_ourprice',  # Classic price block
+        '#priceblock_dealprice',  # Deal price
+        '.a-price[data-a-color="price"] .a-offscreen',  # Current price format
+        'span.a-price.aok-align-center.reinventPricePriceToPayMargin.priceToPay',  # Mobile format
+        '#corePrice_desktop .a-offscreen',  # Desktop core price
+        '#apex_desktop .a-color-price'  # Apex price display
     ]
     
-    for selector in price_selectors:
+    found_price = False
+    price_sources = []
+    
+    # Step 1: Try primary high-confidence selectors first
+    for selector in primary_price_selectors:
         price_elements = soup.select(selector)
         for element in price_elements:
             if element:
                 price_text = element.text.strip()
-                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
-                if price_match:
-                    try:
-                        price_str = price_match.group().replace(',', '')
-                        product['price'] = float(price_str)
-                        
-                        # Get currency
-                        if '₹' in price_text or 'Rs' in price_text:
-                            product['currency'] = 'INR'
-                        elif '$' in price_text:
-                            product['currency'] = 'USD'
-                        elif '€' in price_text:
-                            product['currency'] = 'EUR'
-                        elif '£' in price_text:
-                            product['currency'] = 'GBP'
-                        else:
-                            product['currency'] = 'INR'  # Default for Indian store
+                logger.debug(f"Found potential price text from {selector}: {price_text}")
+                
+                # Skip elements that clearly aren't prices
+                if len(price_text) < 2 or not re.search(r'[\d\.,₹$£€]', price_text):
+                    continue
+                    
+                # More precise pattern matching for rupees (₹) specifically
+                if '₹' in price_text:
+                    price_match = re.search(r'₹\s*([\d,]+\.?\d*)', price_text)
+                    if price_match:
+                        try:
+                            price_str = price_match.group(1).replace(',', '')
+                            price_value = float(price_str)
+                            # Only accept reasonable prices (₹100 to ₹500,000)
+                            if 100 <= price_value <= 500000:
+                                price_sources.append(('primary_selector', price_value, 'INR', selector))
+                                found_price = True
+                                logger.info(f"Extracted primary INR price: ₹{price_value} from {selector}")
+                        except (ValueError, AttributeError) as e:
+                            logger.debug(f"Failed to parse INR price from {price_text}: {str(e)}")
+                
+                # General pattern for all currencies
+                else:
+                    # Match any number that might be a price
+                    price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    if price_match:
+                        try:
+                            price_str = price_match.group().replace(',', '')
+                            price_value = float(price_str)
                             
-                        break
-                    except (ValueError, AttributeError):
+                            # Determine currency and validate price range
+                            if '₹' in price_text or 'Rs' in price_text or 'INR' in price_text:
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            elif '$' in price_text:
+                                currency = 'USD'
+                                valid_price = 1 <= price_value <= 10000
+                            elif '€' in price_text:
+                                currency = 'EUR'
+                                valid_price = 1 <= price_value <= 10000
+                            elif '£' in price_text:
+                                currency = 'GBP'
+                                valid_price = 1 <= price_value <= 10000
+                            else:
+                                # Default to INR for Indian Amazon
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            
+                            if valid_price:
+                                price_sources.append(('primary_selector', price_value, currency, selector))
+                                found_price = True
+                                logger.info(f"Extracted primary price: {price_value} {currency} from {selector}")
+                        except (ValueError, AttributeError) as e:
+                            logger.debug(f"Failed to parse price from {price_text}: {str(e)}")
+    
+    # Step 2: If no price found yet, try secondary selectors (less reliable)
+    if not found_price:
+        secondary_price_selectors = [
+            '.a-color-price',
+            '[data-a-color="price"]',
+            '#price',
+            '.a-price',
+            '.price-section',
+            '.offer-price',
+            '.price'
+        ]
+        
+        for selector in secondary_price_selectors:
+            price_elements = soup.select(selector)
+            for element in price_elements:
+                if element:
+                    price_text = element.text.strip()
+                    logger.debug(f"Found potential secondary price text from {selector}: {price_text}")
+                    
+                    # Skip elements that clearly aren't prices
+                    if len(price_text) < 2 or not re.search(r'[\d\.,₹$£€]', price_text):
                         continue
-            if 'price' in product:  # Break outer loop if price found
-                break
+                    
+                    # Enhanced pattern matching
+                    if '₹' in price_text:
+                        price_match = re.search(r'₹\s*([\d,]+\.?\d*)', price_text)
+                    else:
+                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    
+                    if price_match:
+                        try:
+                            if '₹' in price_text:
+                                price_str = price_match.group(1).replace(',', '')
+                            else:
+                                price_str = price_match.group().replace(',', '')
+                                
+                            price_value = float(price_str)
+                            
+                            # Determine currency
+                            if '₹' in price_text or 'Rs' in price_text or 'INR' in price_text:
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            elif '$' in price_text:
+                                currency = 'USD'
+                                valid_price = 1 <= price_value <= 10000
+                            elif '€' in price_text:
+                                currency = 'EUR'
+                                valid_price = 1 <= price_value <= 10000
+                            elif '£' in price_text:
+                                currency = 'GBP'
+                                valid_price = 1 <= price_value <= 10000
+                            else:
+                                # For Indian site, default to INR
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            
+                            if valid_price:
+                                price_sources.append(('secondary_selector', price_value, currency, selector))
+                                found_price = True
+                                logger.info(f"Extracted secondary price: {price_value} {currency} from {selector}")
+                        except (ValueError, AttributeError) as e:
+                            logger.debug(f"Failed to parse secondary price from {price_text}: {str(e)}")
+    
+    # Step 3: Check for prices in the text nodes that might contain price information
+    if not found_price:
+        # Look for text nodes containing price indicators
+        price_indicators = ['₹', 'Rs.', 'Rs ', 'INR', 'Price:', 'MRP:']
+        for indicator in price_indicators:
+            price_texts = [text for text in soup.stripped_strings if indicator in text]
+            for price_text in price_texts:
+                logger.debug(f"Found potential price text from text node: {price_text}")
+                
+                # Enhanced pattern matching for rupees
+                if '₹' in price_text:
+                    price_match = re.search(r'₹\s*([\d,]+\.?\d*)', price_text)
+                    if price_match:
+                        try:
+                            price_str = price_match.group(1).replace(',', '')
+                            price_value = float(price_str)
+                            if 100 <= price_value <= 500000:  # Reasonable price range in INR
+                                price_sources.append(('text_node', price_value, 'INR', 'text_content'))
+                                found_price = True
+                                logger.info(f"Extracted text node INR price: ₹{price_value}")
+                        except (ValueError, AttributeError):
+                            continue
+                # General pattern for all currencies
+                else:
+                    price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    if price_match:
+                        try:
+                            price_str = price_match.group().replace(',', '')
+                            price_value = float(price_str)
+                            
+                            # Determine currency
+                            if 'Rs.' in price_text or 'Rs ' in price_text or 'INR' in price_text:
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            else:
+                                # Default to INR for Indian Amazon
+                                currency = 'INR'
+                                valid_price = 100 <= price_value <= 500000
+                            
+                            if valid_price:
+                                price_sources.append(('text_node', price_value, currency, 'text_content'))
+                                found_price = True
+                                logger.info(f"Extracted text node price: {price_value} {currency}")
+                        except (ValueError, AttributeError):
+                            continue
+    
+    # Now determine the final price based on all sources collected
+    if price_sources:
+        # Sort by source reliability (primary > secondary > text_node)
+        price_sources.sort(key=lambda x: 0 if x[0] == 'primary_selector' else 1 if x[0] == 'secondary_selector' else 2)
+        
+        # Use the most reliable price
+        source_type, price_value, currency, selector = price_sources[0]
+        product['price'] = price_value
+        product['currency'] = currency
+        product['price_source'] = f"{source_type}:{selector}"
+        
+        logger.info(f"Final selected price: {price_value} {currency} from {source_type}:{selector}")
+    else:
+        logger.warning("No valid price found using any selectors")
     
     # Extract product image with multiple selectors
     image_selectors = [
