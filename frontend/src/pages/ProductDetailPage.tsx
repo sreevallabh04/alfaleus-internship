@@ -29,7 +29,8 @@ const ProductDetailPage = () => {
       try {
         const data = await getProduct(Number.parseInt(id))
         setProduct(data.product)
-        setPriceHistory(data.price_history)
+        // Set the price history directly as received from the backend
+        setPriceHistory(data.price_history || {}) // Ensure it's an object even if null/undefined
       } catch (error) {
         console.error("Error fetching product details:", error)
         setError("Failed to load product details. Please try again.")

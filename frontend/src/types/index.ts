@@ -26,7 +26,20 @@ export interface PriceAlert {
   created_at: string
 }
 
+export interface GroupedPriceHistory {
+  [platform: string]: PriceRecord[];
+}
+
 export interface ApiResponse {
-  success: boolean
-  message?: string
+  success: boolean;
+  message?: string;
+  // Add specific types for different API responses if needed,
+  // or make this more generic. For now, adding price_history for product detail.
+  product?: Product; // For getProduct response
+  price_history?: GroupedPriceHistory; // For getProduct response
+  products?: Product[]; // For getAllProducts response
+  alert?: PriceAlert; // For createAlert response
+  comparisons?: any[]; // Add type for comparison results if needed
+  metadata?: any; // Add type for comparison metadata if needed
+  is_mock_data?: boolean; // For comparison response
 }

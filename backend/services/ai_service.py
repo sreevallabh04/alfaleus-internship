@@ -2,6 +2,7 @@ import os
 import logging
 import requests
 import json
+import re
 from datetime import datetime
 from services.scraper import scrape_product
 from dotenv import load_dotenv
