@@ -991,3 +991,64 @@ WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
 2025-05-25 22:27:31,821 - werkzeug - INFO -  * Detected change in 'C:\\Users\\sriva\\OneDrive\\Desktop\\alfaleus-internship\\backend\\services\\scheduler.py', reloading
 2025-05-25 22:27:31,822 - apscheduler.scheduler - INFO - Scheduler has been shut down
 2025-05-25 22:27:32,106 - werkzeug - INFO -  * Restarting with stat
+2025-05-25 22:27:34,682 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-25 22:27:34,739 - models.db - INFO - Database tables created or verified
+2025-05-25 22:27:34,747 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-25 22:27:34,842 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-25 22:27:34,845 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-25 22:27:34,846 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-25 22:27:34,847 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-25 22:27:34,871 - werkzeug - WARNING -  * Debugger is active!
+2025-05-25 22:27:34,878 - werkzeug - INFO -  * Debugger PIN: 736-769-454
+2025-05-25 22:28:14,873 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:14] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:28:17,184 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:17] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:28:17,203 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:17] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:28:17,218 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:17] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:28:17,233 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:17] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:28:19,930 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:19] "OPTIONS /api/products HTTP/1.1" 200 -
+2025-05-25 22:28:19,947 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0DSVS6P6G
+2025-05-25 22:28:19,947 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-25 22:28:19,950 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-25 22:28:19,951 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0DSVS6P6G
+2025-05-25 22:28:19,952 - services.scraper - INFO - Extracted product ID from URL: B0DSVS6P6G
+2025-05-25 22:28:19,952 - services.scraper - INFO - Waiting 1.29 seconds before attempt 1/5
+2025-05-25 22:28:21,245 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-25 22:28:25,908 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-25 22:28:25,908 - services.scraper - INFO - Waiting 1.52 seconds before attempt 2/5
+2025-05-25 22:28:26,874 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:26] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:28:27,428 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-25 22:28:31,665 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-25 22:28:31,666 - services.scraper - INFO - Waiting 1.62 seconds before attempt 3/5
+2025-05-25 22:28:33,285 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-25 22:28:37,312 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-25 22:28:37,320 - services.scraper - INFO - Waiting 2.44 seconds before attempt 4/5
+2025-05-25 22:28:39,764 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-25 22:28:43,729 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-25 22:28:43,731 - services.scraper - INFO - Waiting 1.67 seconds before attempt 5/5
+2025-05-25 22:28:45,404 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-25 22:28:49,283 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-25 22:28:49,283 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-25 22:28:49,284 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0DSVS6P6G
+2025-05-25 22:28:56,956 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:56] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:28:57,506 - services.scraper - INFO - Successfully extracted product name from mobile site: Panasonic 1.5 Ton 3 Star Premium Wi-Fi Inverter Smart Split AC (Matter Enabled, Higher Airflow, Copper Condenser, 7in1 Convertible, True AI, 2-Way, PM 0.1 Filter, CS/CU-SU18AKY3W, White)
+2025-05-25 22:28:57,857 - services.scraper - INFO - Successfully scraped Amazon product: Panasonic 1.5 Ton 3 Star Premium Wi-Fi Inverter Smart Split AC (Matter Enabled, Higher Airflow, Copper Condenser, 7in1 Convertible, True AI, 2-Way, PM 0.1 Filter, CS/CU-SU18AKY3W, White)
+2025-05-25 22:28:57,900 - services.database - ERROR - Error inserting price record: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (3, 34.0, 'Amazon', '2025-05-25 16:58:57.900216')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-25 22:28:57,903 - routes.products - ERROR - Error adding product: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (3, 34.0, 'Amazon', '2025-05-25 16:58:57.900216')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-25 22:28:57,905 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:28:57] "[35m[1mPOST /api/products HTTP/1.1[0m" 500 -
+2025-05-25 22:29:26,856 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:29:26] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:30:14,875 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:30:14] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:31:08,414 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:08] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:31:10,758 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:31:10,773 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:31:10,778 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:31:10,804 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:31:10,832 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:31:10,845 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/products HTTP/1.1" 200 -
+2025-05-25 22:31:40,867 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:40] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:32:10,859 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:32:10] "GET /api/health HTTP/1.1" 200 -
