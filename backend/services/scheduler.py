@@ -2,7 +2,9 @@ import logging
 import time
 import random
 import traceback
+import statistics
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func, desc
 from models.db import db
 from models.product import Product
 from models.price_record import PriceRecord
@@ -20,26 +22,175 @@ MAX_RETRIES = 3
 RETRY_DELAY_BASE = 2  # Base delay in seconds
 RATE_LIMIT_DELAY = 1.5  # Delay between requests to avoid rate limiting
 
-def update_all_prices(app):
+# Constants for prioritization
+DEFAULT_UPDATE_INTERVAL = 24  # Default hours between updates for normal priority products
+MAX_PRODUCTS_PER_RUN = 100  # Maximum number of products to update in one run (0 for no limit)
+VOLATILITY_WINDOW_DAYS = 7  # Number of days to look back for volatility calculation
+ALERT_PRIORITY_MULTIPLIER = 2.0  # Priority multiplier for products with active alerts
+RECENT_PRICE_CHANGE_WINDOW_HOURS = 48  # Window to consider recent price changes
+RECENT_PRICE_CHANGE_MULTIPLIER = 1.5  # Priority multiplier for products with recent price changes
+
+def calculate_update_priority(product, current_time=None):
     """
-    Update prices for all tracked products across all relevant platforms.
+    Calculate a priority score for updating a product based on multiple factors.
+    Higher scores indicate higher priority for updates.
+    
+    Factors considered:
+    1. Time since last update (older updates get higher priority)
+    2. Price volatility (more volatile products get higher priority)
+    3. Number of active alerts (products with alerts get higher priority)
+    4. Recent price changes (products with recent changes get higher priority)
+    
+    Returns:
+        dict: Contains priority score and component factors
+    """
+    if current_time is None:
+        current_time = datetime.utcnow()
+    
+    priority_data = {
+        'product_id': product.id,
+        'product_name': product.name,
+        'time_factor': 0,
+        'volatility_factor': 0,
+        'alert_factor': 0,
+        'recent_change_factor': 0,
+        'total_score': 0
+    }
+    
+    try:
+        # 1. Time since last update factor
+        time_since_update = 0
+        if product.updated_at:
+            hours_since_update = (current_time - product.updated_at).total_seconds() / 3600
+            # Normalize against expected update interval
+            time_since_update = hours_since_update / DEFAULT_UPDATE_INTERVAL
+        else:
+            # Never updated products get highest priority
+            time_since_update = 5.0
+        priority_data['time_factor'] = time_since_update
+        
+        # 2. Price volatility factor (based on coefficient of variation)
+        try:
+            lookback_date = current_time - timedelta(days=VOLATILITY_WINDOW_DAYS)
+            recent_prices = db.session.query(PriceRecord.price).filter(
+                PriceRecord.product_id == product.id,
+                PriceRecord.platform == 'Amazon',  # Focus on main platform for volatility
+                PriceRecord.timestamp >= lookback_date
+            ).all()
+            
+            prices = [p[0] for p in recent_prices]
+            if len(prices) >= 3:  # Need at least 3 data points for meaningful volatility
+                mean_price = statistics.mean(prices)
+                if mean_price > 0:
+                    std_dev = statistics.stdev(prices)
+                    # Coefficient of variation (higher value = more volatile)
+                    volatility = std_dev / mean_price
+                    priority_data['volatility_factor'] = min(volatility * 10, 3.0)  # Cap at 3.0
+                else:
+                    priority_data['volatility_factor'] = 0
+            else:
+                # Not enough data points, give medium-low priority
+                priority_data['volatility_factor'] = 0.5
+        except Exception as e:
+            logger.warning(f"Error calculating volatility for product {product.id}: {str(e)}")
+            priority_data['volatility_factor'] = 0.5  # Default to medium-low priority
+        
+        # 3. Active alerts factor
+        active_alerts = db.session.query(func.count(PriceAlert.id)).filter(
+            PriceAlert.product_id == product.id,
+            PriceAlert.triggered == False
+        ).scalar()
+        
+        # Products with alerts get higher priority
+        if active_alerts > 0:
+            priority_data['alert_factor'] = min(active_alerts * 0.5, 2.0) * ALERT_PRIORITY_MULTIPLIER
+        
+        # 4. Recent price changes factor
+        recent_change_window = current_time - timedelta(hours=RECENT_PRICE_CHANGE_WINDOW_HOURS)
+        recent_price_changes = db.session.query(PriceRecord).filter(
+            PriceRecord.product_id == product.id,
+            PriceRecord.timestamp >= recent_change_window
+        ).order_by(desc(PriceRecord.timestamp)).limit(5).all()
+        
+        if len(recent_price_changes) >= 2:
+            # Check if there's a significant price change in recent records
+            prices = [record.price for record in recent_price_changes]
+            max_price = max(prices)
+            min_price = min(prices)
+            
+            if max_price > 0:  # Avoid division by zero
+                price_range_percent = (max_price - min_price) / max_price * 100
+                
+                if price_range_percent >= 5.0:  # 5% or more variation in recent prices
+                    priority_data['recent_change_factor'] = RECENT_PRICE_CHANGE_MULTIPLIER
+        
+        # Calculate total priority score (sum of all factors)
+        priority_data['total_score'] = (
+            priority_data['time_factor'] + 
+            priority_data['volatility_factor'] + 
+            priority_data['alert_factor'] + 
+            priority_data['recent_change_factor']
+        )
+        
+    except Exception as e:
+        logger.error(f"Error calculating priority for product {product.id}: {str(e)}")
+        logger.debug(traceback.format_exc())
+        # Default to medium priority based on time since update only
+        priority_data['total_score'] = priority_data['time_factor']
+    
+    return priority_data
+
+def update_all_prices(app, max_products=MAX_PRODUCTS_PER_RUN):
+    """
+    Update prices for tracked products across all relevant platforms.
+    Products are prioritized based on various factors for efficient resource utilization.
+    
+    Args:
+        app: Flask application instance
+        max_products: Maximum number of products to update in this run (0 for no limit)
+    
     This function is called by the scheduler.
-    Enhanced with better error handling, retries, and transaction management.
+    Enhanced with smart prioritization, better error handling, retries, and transaction management.
     """
     with app.app_context():
         start_time = datetime.utcnow()
-        logger.info("Starting scheduled price update for all products and platforms")
+        logger.info("Starting scheduled price update with smart prioritization")
         
         try:
+            # Get all products
             products = Product.query.all()
             total_products = len(products)
-            logger.info(f"Found {total_products} products to update")
+            logger.info(f"Found {total_products} products to evaluate for updates")
             
+            # Calculate priority for each product
+            priorities = []
+            for product in products:
+                priority_data = calculate_update_priority(product, current_time=start_time)
+                priorities.append((product, priority_data))
+            
+            # Sort products by priority score (highest first)
+            priorities.sort(key=lambda x: x[1]['total_score'], reverse=True)
+            
+            # Determine how many products to update in this run
+            products_to_update = priorities
+            if max_products > 0 and max_products < total_products:
+                products_to_update = priorities[:max_products]
+                logger.info(f"Limiting update to top {max_products} priority products out of {total_products} total")
+            
+            # Log priority information for monitoring
+            logger.info("Priority order for this update run:")
+            for idx, (product, priority) in enumerate(products_to_update[:10]):  # Log top 10
+                logger.info(f"  {idx+1}. Product {product.id}: {product.name} - Score: {priority['total_score']:.2f} "
+                           f"(Time: {priority['time_factor']:.2f}, Volatility: {priority['volatility_factor']:.2f}, "
+                           f"Alerts: {priority['alert_factor']:.2f}, Recent changes: {priority['recent_change_factor']:.2f})")
+            
+            # Update the selected products
             success_count = 0
             error_count = 0
             
-            for index, product in enumerate(products):
-                logger.info(f"Processing product {index+1}/{total_products}: {product.name} (ID: {product.id})")
+            for index, (product, priority) in enumerate(products_to_update):
+                logger.info(f"Processing product {index+1}/{len(products_to_update)}: "
+                           f"{product.name} (ID: {product.id}, Priority: {priority['total_score']:.2f})")
                 
                 # Create a separate transaction for each product
                 try:

@@ -63,12 +63,19 @@ app.register_blueprint(compare_bp, url_prefix='/api/compare')
 # Initialize scheduler (only in non-serverless environments)
 if not os.getenv('VERCEL'):
     logger.info("Initializing scheduler for non-serverless environment")
+    
+    # Get configuration from environment variables
+    check_interval = int(os.getenv('PRICE_CHECK_INTERVAL', 30))
+    max_products = int(os.getenv('MAX_PRODUCTS_PER_RUN', 100))
+    
+    logger.info(f"Scheduler config: check_interval={check_interval}m, max_products={max_products}")
+    
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         update_all_prices, 
         'interval', 
-        minutes=int(os.getenv('PRICE_CHECK_INTERVAL', 30)),
-        args=[app]
+        minutes=check_interval,
+        args=[app, max_products]
     )
     
     # Start the scheduler

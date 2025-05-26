@@ -1052,3 +1052,277 @@ WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
 2025-05-25 22:31:10,845 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:10] "GET /api/products HTTP/1.1" 200 -
 2025-05-25 22:31:40,867 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:31:40] "GET /api/health HTTP/1.1" 200 -
 2025-05-25 22:32:10,859 - werkzeug - INFO - 192.168.1.8 - - [25/May/2025 22:32:10] "GET /api/health HTTP/1.1" 200 -
+2025-05-25 22:32:52,813 - apscheduler.executors.default - INFO - Running job "update_all_prices (trigger: interval[0:30:00], next run at: 2025-05-25 22:32:52 IST)" (scheduled at 2025-05-25 22:32:52.795709+05:30)
+2025-05-25 22:32:52,814 - services.scheduler - INFO - Starting scheduled price update for all products and platforms
+2025-05-25 22:32:52,818 - services.scheduler - INFO - Found 3 products to update
+2025-05-25 22:32:52,818 - services.scheduler - INFO - Updating prices for product: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA) (ID: 1)
+2025-05-25 22:32:52,819 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-25 22:32:52,819 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-25 22:32:52,820 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-25 22:32:52,821 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-25 22:32:52,821 - services.scraper - INFO - Extracted product ID from URL: B0D7LKX76Y
+2025-05-25 22:32:52,821 - services.scraper - INFO - Waiting 1.48 seconds before attempt 1/5
+2025-05-25 22:32:54,305 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-25 22:32:58,586 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-25 22:32:58,586 - services.scraper - INFO - Waiting 1.52 seconds before attempt 2/5
+2025-05-25 22:33:00,110 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-25 22:33:03,773 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-25 22:33:03,774 - services.scraper - INFO - Waiting 1.17 seconds before attempt 3/5
+2025-05-25 22:33:04,941 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-25 22:33:08,452 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-25 22:33:08,454 - services.scraper - INFO - Waiting 1.88 seconds before attempt 4/5
+2025-05-25 22:33:10,339 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-25 22:33:13,793 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-25 22:33:13,794 - services.scraper - INFO - Waiting 2.20 seconds before attempt 5/5
+2025-05-25 22:33:15,995 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-25 22:33:19,736 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-25 22:33:19,737 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-25 22:33:19,737 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0D7LKX76Y
+2025-05-25 22:33:24,298 - services.scraper - INFO - Successfully extracted product name from mobile site: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA)
+2025-05-25 22:33:24,364 - services.scraper - INFO - Successfully scraped Amazon product: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA)
+2025-05-25 22:33:24,365 - services.scheduler - INFO - Updated Amazon price for product 1: 40.0
+2025-05-25 22:33:24,365 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-25 22:33:24,365 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-25 22:33:24,366 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-25 22:33:24,366 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-25 22:33:24,367 - services.scraper - INFO - Extracted product ID from URL: B0D7LKX76Y
+2025-05-25 22:33:24,368 - services.scraper - INFO - Waiting 1.49 seconds before attempt 1/5
+2025-05-25 22:33:25,857 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-25 22:33:29,255 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-25 22:33:29,255 - services.scraper - INFO - Waiting 2.38 seconds before attempt 2/5
+2025-05-25 22:33:31,638 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-25 22:33:35,386 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-25 22:33:35,387 - services.scraper - INFO - Waiting 1.61 seconds before attempt 3/5
+2025-05-25 22:33:37,002 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-25 22:33:40,711 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-25 22:33:40,711 - services.scraper - INFO - Waiting 2.16 seconds before attempt 4/5
+2025-05-25 22:33:42,874 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-25 22:33:46,331 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-25 22:33:46,333 - services.scraper - INFO - Waiting 2.04 seconds before attempt 5/5
+2025-05-25 22:33:48,377 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-25 22:33:51,960 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-25 22:33:51,961 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-25 22:33:51,962 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0D7LKX76Y
+2025-05-25 22:33:57,473 - services.scraper - INFO - Successfully extracted product name from mobile site: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA)
+2025-05-25 22:33:57,530 - services.scraper - INFO - Successfully scraped Amazon product: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA)
+2025-05-25 22:33:59,343 - services.ai_service - INFO - Successfully parsed Groq AI response for product: MSI PRO MP225 21.5 Inch Full HD Office Monitor
+2025-05-25 22:33:59,346 - services.ai_service - INFO - Starting product comparison for: MSI PRO MP225 21.5 Inch Full HD Office Monitor
+2025-05-25 22:33:59,346 - services.ai_service - INFO - Brand: MSI, Model: MP225
+2025-05-25 22:33:59,347 - services.ai_service - INFO - Extracted keywords for search: ['msi', 'mp225', 'mp225', '21.5', 'inch', 'full', 'office', 'monitor', 'msi pro mp225 21.5 inch full hd office monitor']
+2025-05-25 22:33:59,347 - services.ai_service - INFO - Using optimized search query for comparison: MSI PRO MP225 21.5 Inch Full HD Office Monitor
+2025-05-25 22:33:59,347 - services.scheduler - ERROR - Error searching/scraping other platforms for product 1: name 're' is not defined
+2025-05-25 22:33:59,348 - services.scheduler - INFO - Updating prices for product: Nutrabay Gold Vital Whey Protein Powder - 1kg, Gourmet Vanilla | 20g Protein for Beginners | Added Vitamins & Minerals | Muscle Growth & Faster Recovery | Gym Supplement for Men & Women (ID: 2)
+2025-05-25 22:33:59,348 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0B97NZLD3
+2025-05-25 22:33:59,348 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-25 22:33:59,349 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-25 22:33:59,349 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0B97NZLD3
+2025-05-25 22:33:59,350 - services.scraper - INFO - Extracted product ID from URL: B0B97NZLD3
+2025-05-25 22:33:59,350 - services.scraper - INFO - Waiting 1.27 seconds before attempt 1/5
+2025-05-25 22:34:00,626 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-25 22:34:04,826 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-25 22:34:04,827 - services.scraper - INFO - Waiting 1.71 seconds before attempt 2/5
+2025-05-25 22:34:06,538 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-25 22:34:10,472 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-25 22:34:10,473 - services.scraper - INFO - Waiting 1.61 seconds before attempt 3/5
+2025-05-25 22:34:12,082 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-25 22:34:16,003 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-25 22:34:16,004 - services.scraper - INFO - Waiting 3.33 seconds before attempt 4/5
+2025-05-25 22:34:19,333 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-25 22:34:23,246 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-25 22:34:23,247 - services.scraper - INFO - Waiting 3.03 seconds before attempt 5/5
+2025-05-25 22:34:26,281 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-25 22:34:30,294 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-25 22:34:30,295 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-25 22:34:30,295 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0B97NZLD3
+2025-05-25 22:34:35,405 - services.scraper - INFO - Successfully extracted product name from mobile site: Nutrabay Gold Vital Whey Protein Powder - 1kg, Gourmet Vanilla | 20g Protein for Beginners | Added Vitamins & Minerals | Muscle Growth & Faster Recovery | Gym Supplement for Men & Women
+2025-05-25 22:34:35,437 - services.scraper - INFO - Successfully scraped Amazon product: Nutrabay Gold Vital Whey Protein Powder - 1kg, Gourmet Vanilla | 20g Protein for Beginners | Added Vitamins & Minerals | Muscle Growth & Faster Recovery | Gym Supplement for Men & Women
+2025-05-25 22:34:35,438 - services.scheduler - WARNING - Failed to scrape price for main product URL https://www.amazon.in/dp/B0B97NZLD3 (ID: 2)
+2025-05-25 22:34:35,438 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0B97NZLD3
+2025-05-25 22:34:35,439 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-25 22:34:35,439 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-25 22:34:35,440 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0B97NZLD3
+2025-05-25 22:34:35,440 - services.scraper - INFO - Extracted product ID from URL: B0B97NZLD3
+2025-05-25 22:34:35,441 - services.scraper - INFO - Waiting 1.37 seconds before attempt 1/5
+2025-05-26 11:37:47,634 - app - INFO - CORS configured for all origins (development mode)
+2025-05-26 11:37:47,694 - models.db - INFO - Database tables created or verified
+2025-05-26 11:37:47,700 - app - INFO - Initializing scheduler for non-serverless environment
+2025-05-26 11:37:55,461 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-26 11:37:55,466 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-26 11:37:55,466 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-26 11:37:55,468 - app - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-26 11:37:55,533 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.7:5000
+2025-05-26 11:37:55,534 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-26 11:59:00,979 - app - INFO - CORS configured for all origins (development mode)
+2025-05-26 11:59:01,042 - models.db - INFO - Database tables created or verified
+2025-05-26 11:59:01,047 - app - INFO - Initializing scheduler for non-serverless environment
+2025-05-26 11:59:01,048 - app - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-26 11:59:01,118 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-26 11:59:01,120 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-26 11:59:01,120 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-26 11:59:01,121 - app - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-26 11:59:01,139 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.7:5000
+2025-05-26 11:59:01,139 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-26 12:09:52,263 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-26 12:09:52,293 - models.db - INFO - Database tables created or verified
+2025-05-26 12:09:52,297 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-26 12:09:52,297 - __main__ - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-26 12:09:52,377 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-26 12:09:52,380 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-26 12:09:52,380 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-26 12:09:52,381 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-26 12:09:52,477 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.7:5000
+2025-05-26 12:09:52,478 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-26 12:09:52,485 - werkzeug - INFO -  * Restarting with stat
+2025-05-26 12:09:54,212 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-26 12:09:54,247 - models.db - INFO - Database tables created or verified
+2025-05-26 12:09:54,253 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-26 12:09:54,254 - __main__ - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-26 12:09:54,330 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-26 12:09:54,332 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-26 12:09:54,333 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-26 12:09:54,333 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-26 12:09:54,351 - werkzeug - WARNING -  * Debugger is active!
+2025-05-26 12:09:54,374 - werkzeug - INFO -  * Debugger PIN: 736-769-454
+2025-05-26 12:17:30,805 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:30] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:17:30,846 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:30] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:31,047 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:31] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:17:31,127 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:31] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:31,174 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:31] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:31,450 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:31] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:36,603 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:36] "OPTIONS /api/products/3 HTTP/1.1" 200 -
+2025-05-26 12:17:36,941 - services.database - ERROR - Error deleting product: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE ? = price_records.product_id]
+[parameters: (3,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:17:36,943 - routes.products - ERROR - Error deleting product 3: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE ? = price_records.product_id]
+[parameters: (3,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:17:36,945 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:36] "[35m[1mDELETE /api/products/3 HTTP/1.1[0m" 500 -
+2025-05-26 12:17:40,639 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:40] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:40,939 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:40] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:17:40,960 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:40] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:41,251 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:41] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:17:41,288 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:41] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:41,617 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:41] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:51,678 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:17:51] "OPTIONS /api/products HTTP/1.1" 200 -
+2025-05-26 12:17:51,957 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0DX7DSBH7
+2025-05-26 12:17:51,958 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-26 12:17:51,959 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-26 12:17:51,960 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0DX7DSBH7
+2025-05-26 12:17:51,960 - services.scraper - INFO - Extracted product ID from URL: B0DX7DSBH7
+2025-05-26 12:17:51,961 - services.scraper - INFO - Waiting 1.66 seconds before attempt 1/5
+2025-05-26 12:17:53,618 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-26 12:17:58,101 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-26 12:17:58,102 - services.scraper - INFO - Waiting 2.17 seconds before attempt 2/5
+2025-05-26 12:18:00,274 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-26 12:18:04,376 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-26 12:18:04,377 - services.scraper - INFO - Waiting 1.70 seconds before attempt 3/5
+2025-05-26 12:18:06,077 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-26 12:18:09,303 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-26 12:18:09,303 - services.scraper - INFO - Waiting 2.29 seconds before attempt 4/5
+2025-05-26 12:18:10,633 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:10] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:18:11,594 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-26 12:18:14,615 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-26 12:18:14,616 - services.scraper - INFO - Waiting 3.13 seconds before attempt 5/5
+2025-05-26 12:18:17,749 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-26 12:18:21,682 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-26 12:18:21,683 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-26 12:18:21,683 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0DX7DSBH7
+2025-05-26 12:18:26,026 - services.scraper - INFO - Successfully extracted product name from mobile site: HOKIPO Gaming Chair Cover Stretchable Elastic Jacquard Computer Rotating Chair Seat Covers Slipcover(DGRY-NEW2-5008)
+2025-05-26 12:18:26,072 - services.scraper - INFO - Successfully scraped Amazon product: HOKIPO Gaming Chair Cover Stretchable Elastic Jacquard Computer Rotating Chair Seat Covers Slipcover(DGRY-NEW2-5008)
+2025-05-26 12:18:26,106 - services.database - ERROR - Error inserting price record: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (4, 42.0, 'Amazon', '2025-05-26 06:48:26.105170')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:26,107 - routes.products - ERROR - Error adding product: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (4, 42.0, 'Amazon', '2025-05-26 06:48:26.105170')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:26,109 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:26] "[35m[1mPOST /api/products HTTP/1.1[0m" 500 -
+2025-05-26 12:18:40,948 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:40] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:18:49,150 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:49] "OPTIONS /api/products HTTP/1.1" 200 -
+2025-05-26 12:18:49,467 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:49] "POST /api/products HTTP/1.1" 200 -
+2025-05-26 12:18:49,734 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:49] "GET /api/products HTTP/1.1" 200 -
+2025-05-26 12:18:54,881 - services.database - ERROR - Error getting price history for product 4: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (4,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:54,884 - routes.products - ERROR - Error fetching product 4 with grouped history: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (4,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:54,887 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:54] "[35m[1mGET /api/products/4 HTTP/1.1[0m" 500 -
+2025-05-26 12:18:55,218 - services.database - ERROR - Error getting price history for product 4: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (4,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:55,219 - routes.products - ERROR - Error fetching product 4 with grouped history: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (4,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-26 12:18:55,221 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:18:55] "[35m[1mGET /api/products/4 HTTP/1.1[0m" 500 -
+2025-05-26 12:19:11,362 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:19:11] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:19:41,053 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:19:41] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:20:11,349 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:20:11] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:20:41,051 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:20:41] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:21:15,382 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:21:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:22:15,063 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:22:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:23:15,361 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:23:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:24:15,055 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:24:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:25:15,380 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:25:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:26:15,373 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:26:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:27:15,063 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:27:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:28:15,366 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:28:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:29:15,059 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:29:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:30:15,366 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:30:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:31:15,049 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:31:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:32:15,374 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:32:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:33:15,049 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:33:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:34:15,373 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:34:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:35:15,066 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:35:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:36:15,374 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:36:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:37:15,060 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:37:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:38:15,362 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:38:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:39:15,054 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:39:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:40:15,372 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:40:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:40:17,109 - apscheduler.executors.default - WARNING - Run time of job "update_all_prices (trigger: interval[0:30:00], next run at: 2025-05-26 12:39:52 IST)" was missed by 0:00:24.731245
+2025-05-26 12:40:19,057 - apscheduler.executors.default - WARNING - Run time of job "update_all_prices (trigger: interval[0:30:00], next run at: 2025-05-26 12:39:54 IST)" was missed by 0:00:24.727284
+2025-05-26 12:40:41,051 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:40:41] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:41:11,362 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:41:11] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:42:15,351 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:42:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:43:15,370 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:43:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:44:15,091 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:44:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:45:15,354 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:45:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:46:15,061 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:46:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:47:15,368 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:47:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:48:15,061 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:48:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:49:15,364 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:49:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:50:15,059 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:50:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:51:15,362 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:51:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:52:15,062 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:52:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:53:15,360 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:53:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:54:15,063 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:54:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:55:15,368 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:55:15] "GET /api/health HTTP/1.1" 200 -
+2025-05-26 12:55:41,055 - werkzeug - INFO - 127.0.0.1 - - [26/May/2025 12:55:41] "GET /api/health HTTP/1.1" 200 -

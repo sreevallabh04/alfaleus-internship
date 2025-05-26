@@ -3,6 +3,7 @@ import logging
 import requests
 import json
 import re
+import uuid
 from datetime import datetime
 from services.scraper import scrape_product
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 # API keys
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 def extract_product_metadata(url):
     """
@@ -29,12 +31,21 @@ def extract_product_metadata(url):
             logger.warning(f"Failed to scrape product data from {url}")
             return None
         
-        # If we have Groq API key, enhance the metadata
+        # Try AI enhancement in order of preference: Gemini, Groq, OpenAI
+        
+        # Try Gemini first if available
+        if GEMINI_API_KEY:
+            enhanced_metadata = enhance_metadata_with_gemini(product_data)
+            if enhanced_metadata:
+                return enhanced_metadata
+                
+        # Fallback to Groq if available
         if GROQ_API_KEY:
             enhanced_metadata = enhance_metadata_with_groq(product_data)
             if enhanced_metadata:
                 return enhanced_metadata
-        # Fallback to OpenAI if available
+                
+        # Lastly, try OpenAI if available
         elif OPENAI_API_KEY:
             enhanced_metadata = enhance_metadata_with_openai(product_data)
             if enhanced_metadata:
@@ -109,6 +120,116 @@ def extract_keywords_from_title(title, brand=None, model=None):
         important_terms.append(title.lower())
         
     return important_terms
+
+def enhance_metadata_with_gemini(product_data):
+    """
+    Use Google's Gemini API to enhance product metadata
+    """
+    if not GEMINI_API_KEY:
+        return None
+    
+    try:
+        # Gemini API endpoint
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        
+        # Make prompt more explicit about returning valid JSON
+        prompt = f"""
+        Extract detailed product metadata from this information:
+        
+        Product Name: {product_data.get('name', '')}
+        Description: {product_data.get('description', '')}
+        
+        Return a valid JSON object with the following fields:
+        - name: The full product name
+        - brand: The brand name
+        - model: The model number or name
+        - category: The product category
+        - key_features: A list of key features (up to 3)
+        
+        IMPORTANT: Your response must be ONLY a valid JSON object, with no additional text, explanations, or formatting.
+        """
+        
+        # Gemini API has a different structure compared to OpenAI/Groq
+        data = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 500,
+                "topP": 0.8,
+                "responseMimeType": "application/json"
+            }
+        }
+        
+        response = requests.post(api_url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # Extract content from Gemini response (different structure than OpenAI/Groq)
+        if 'candidates' in result and len(result['candidates']) > 0:
+            candidate = result['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+                ai_response = candidate['content']['parts'][0].get('text', '')
+            else:
+                logger.warning("Empty or invalid response structure from Gemini API")
+                return None
+        else:
+            logger.warning("No candidates found in Gemini API response")
+            return None
+        
+        # Validate AI response before parsing
+        if not ai_response or not ai_response.strip():
+            logger.warning("Empty response from Gemini AI")
+            return None
+        
+        # Try to parse the JSON response
+        try:
+            # Clean the response before parsing
+            cleaned_response = sanitize_json_string(ai_response)
+            metadata = json.loads(cleaned_response)
+            
+            logger.info(f"Successfully parsed Gemini AI response for product: {metadata.get('name', 'Unknown')}")
+            
+            # Add the original price and image
+            metadata['price'] = product_data.get('price')
+            metadata['currency'] = product_data.get('currency', 'INR')
+            metadata['image_url'] = product_data.get('image_url', '')
+            
+            return metadata
+        except json.JSONDecodeError as json_err:
+            # Log detailed error and truncated response for debugging
+            truncated_response = ai_response[:500] + '...' if len(ai_response) > 500 else ai_response
+            logger.warning(f"Failed to parse Gemini AI response as JSON: {str(json_err)}")
+            logger.debug(f"Raw response content (truncated): {truncated_response}")
+            
+            # Fallback to base metadata from product_data
+            logger.info("Using fallback metadata from scraped product data")
+            return {
+                'name': product_data.get('name', ''),
+                'brand': extract_brand_from_name(product_data.get('name', '')),
+                'description': product_data.get('description', ''),
+                'price': product_data.get('price'),
+                'currency': product_data.get('currency', 'INR'),
+                'image_url': product_data.get('image_url', ''),
+                'category': guess_product_category(product_data.get('name', ''), product_data.get('description', '')),
+                'key_features': []
+            }
+    except Exception as e:
+        logger.error(f"Error enhancing metadata with Gemini AI: {str(e)}")
+        return None
 
 def enhance_metadata_with_groq(product_data):
     """
@@ -314,6 +435,83 @@ def enhance_metadata_with_openai(product_data):
         logger.error(f"Error enhancing metadata with OpenAI: {str(e)}")
         return None
 
+def is_genuine_match(match_title, original_title, brand, model, keywords, features=None):
+    """
+    Check if a product match is genuine by comparing key attributes
+    Returns (is_match, confidence_score)
+    
+    Args:
+        match_title (str): Title of the potential match
+        original_title (str): Original product title
+        brand (str): Brand name
+        model (str): Model identifier
+        keywords (list): List of important keywords from the original title
+        features (list, optional): List of product features
+        
+    Returns:
+        tuple: (is_match, confidence_score)
+    """
+    if not match_title:
+        return False, 0.0
+        
+    match_title = match_title.lower()
+    original_title = original_title.lower() if original_title else ""
+    brand = brand.lower() if brand else ""
+    model = model.lower() if model else ""
+    
+    # Start with base confidence
+    confidence = 0.5
+    
+    # Brand match is critical
+    if brand:
+        if brand in match_title:
+            confidence += 0.2
+        else:
+            # Brand mismatch is a strong indicator it's not the same product
+            return False, 0.0
+        
+    # Model match is also critical if available
+    if model:
+        if model in match_title:
+            confidence += 0.2
+        else:
+            # Model mismatch usually means different product
+            return False, 0.1
+        
+    # Calculate keyword matches
+    matched_keywords = 0
+    total_keywords = len(keywords) if keywords else 1
+    
+    for keyword in keywords:
+        if keyword in match_title:
+            matched_keywords += 1
+            
+    # Weight keyword matches
+    keyword_match_percentage = matched_keywords / total_keywords
+    confidence += keyword_match_percentage * 0.3
+    
+    # Check for key feature matches if available
+    if features and isinstance(features, list):
+        feature_match_count = 0
+        for feature in features:
+            feature_keywords = extract_keywords_from_title(feature)
+            feature_match_score = 0
+            for kw in feature_keywords:
+                if kw in match_title:
+                    feature_match_score += 1
+            
+            if feature_match_score / max(1, len(feature_keywords)) > 0.5:
+                feature_match_count += 1
+        
+        # Add feature match confidence
+        if len(features) > 0:
+            confidence += (feature_match_count / len(features)) * 0.1
+    
+    # Final determination
+    is_match = confidence >= 0.75
+    
+    return is_match, min(1.0, confidence)  # Cap confidence at 1.0
+
 def extract_brand_from_name(name):
     """
     Extract brand from product name (fallback if AI is not available)
@@ -327,6 +525,83 @@ def extract_brand_from_name(name):
         return words[0]
     
     return ""
+
+def process_ai_product_matches(ai_data, product_name, product_brand, product_model, product_features, keywords):
+    """
+    Process AI-generated product matches and convert to expected format
+    
+    Args:
+        ai_data (list): List of product matches from AI
+        product_name (str): Original product name
+        product_brand (str): Original product brand
+        product_model (str): Original product model
+        product_features (list): Original product features
+        
+    Returns:
+        list: Formatted list of comparison entries
+    """
+    if not ai_data or not isinstance(ai_data, list):
+        logger.warning("Invalid AI data format for product matches")
+        return []
+    
+    comparisons = []
+    
+    for product_match in ai_data:
+        website = product_match.get('website', '').strip()
+        product_title = product_match.get('product_title', '').strip()
+        price_str = product_match.get('price', '').strip()
+        url = product_match.get('url', '').strip()
+        
+        # Skip incomplete entries
+        if not website or not product_title or not url:
+            logger.warning(f"Skipping incomplete product match: {product_match}")
+            continue
+        
+        # Verify this is a genuine match using our enhanced logic
+        is_match, confidence = is_genuine_match(
+            product_title, 
+            product_name, 
+            product_brand, 
+            product_model,
+            keywords,
+            product_features
+        )
+        
+        if not is_match:
+            logger.warning(f"Filtered out non-genuine match: {product_title} (confidence: {confidence:.2f})")
+            continue
+            
+        logger.info(f"Found genuine match on {website}: {product_title} (confidence: {confidence:.2f})")
+        
+        # Create a comparison entry in the format expected by the frontend
+        comparison_entry = {
+            'platform': website,
+            'url': url,
+            'price': None,  # Default to null, will update below
+            'currency': 'INR',
+            'in_stock': True,  # Assume in stock
+            'last_checked': datetime.now().isoformat(),
+            'is_genuine_match': True,
+            'match_confidence': confidence,
+            'product_title': product_title  # Store the full product title
+        }
+        
+        # Process price with proper error handling
+        if price_str:
+            # Extract numeric price value using regex
+            price_match = re.search(r'₹\s*([\d,]+)', price_str)
+            if price_match:
+                try:
+                    # Convert to numeric format for frontend
+                    numeric_price = float(price_match.group(1).replace(',', ''))
+                    comparison_entry['price'] = numeric_price
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse price '{price_str}': {str(e)}")
+        
+        comparisons.append(comparison_entry)
+    
+    logger.info(f"Processed {len(comparisons)} valid product matches from AI data")
+    return comparisons
 
 def search_other_platforms(metadata):
     """
@@ -383,72 +658,7 @@ def search_other_platforms(metadata):
         'Croma': f"https://www.croma.com/searchB?q={search_query}"
     }
     
-    # Enhanced function to check if a product match is genuine based on keywords
-    def is_genuine_match(match_title, original_title, brand, model, features=None):
-        """
-        Check if a product match is genuine by comparing key attributes
-        Returns (is_match, confidence_score)
-        """
-        if not match_title:
-            return False, 0.0
-            
-        match_title = match_title.lower()
-        original_title = original_title.lower() if original_title else ""
-        brand = brand.lower() if brand else ""
-        model = model.lower() if model else ""
-        
-        # Start with base confidence
-        confidence = 0.5
-        
-        # Brand match is critical
-        if brand:
-            if brand in match_title:
-                confidence += 0.2
-            else:
-                # Brand mismatch is a strong indicator it's not the same product
-                return False, 0.0
-            
-        # Model match is also critical if available
-        if model:
-            if model in match_title:
-                confidence += 0.2
-            else:
-                # Model mismatch usually means different product
-                return False, 0.1
-            
-        # Calculate keyword matches
-        matched_keywords = 0
-        total_keywords = len(keywords) if keywords else 1
-        
-        for keyword in keywords:
-            if keyword in match_title:
-                matched_keywords += 1
-                
-        # Weight keyword matches
-        keyword_match_percentage = matched_keywords / total_keywords
-        confidence += keyword_match_percentage * 0.3
-        
-        # Check for key feature matches if available
-        if features and isinstance(features, list):
-            feature_match_count = 0
-            for feature in features:
-                feature_keywords = extract_keywords_from_title(feature)
-                feature_match_score = 0
-                for kw in feature_keywords:
-                    if kw in match_title:
-                        feature_match_score += 1
-                
-                if feature_match_score / max(1, len(feature_keywords)) > 0.5:
-                    feature_match_count += 1
-            
-            # Add feature match confidence
-            if len(features) > 0:
-                confidence += (feature_match_count / len(features)) * 0.1
-        
-        # Final determination
-        is_match = confidence >= 0.75
-        
-        return is_match, min(1.0, confidence)  # Cap confidence at 1.0
+    # Use the global is_genuine_match function instead of defining a duplicate
     
     # Prepare search context from metadata with more detailed information
     search_context = {
@@ -484,7 +694,7 @@ def search_other_platforms(metadata):
     search_context["critical_identifiers"] = critical_identifiers
     
     # If we have access to an LLM API, use it to generate more precise product matches
-    if GROQ_API_KEY or OPENAI_API_KEY:
+    if GEMINI_API_KEY or GROQ_API_KEY or OPENAI_API_KEY:
         try:
             # Prepare detailed product information for the LLM with more specific instructions
             features_text = ""
@@ -506,6 +716,104 @@ def search_other_platforms(metadata):
             {critical_info}
             """
             
+            # Create a detailed prompt for finding exact equivalent products
+            prompt = f"""
+            You are a smart shopping assistant. Given a product scraped from Amazon, search for the **same or exact equivalent product** on other Indian e-commerce sites like Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma.
+
+            Use the following information as your search context:
+            {product_info}
+
+            ❗ Your goal is to find the **same model** or **closest official variant**, not just similar category items.
+
+            For each of these platforms: Flipkart, Snapdeal, Reliance Digital, Tata Cliq, and Croma, provide:
+            1. The exact product title as it would appear on that platform (with exact model number and specifications matching the original)
+            2. The estimated price in INR (realistic market price)
+            3. The product URL (either direct product URL or search URL that would lead to this specific product)
+
+            Return a list of matches in this JSON format:
+            [
+              {{
+                "website": "Flipkart", 
+                "product_title": "Realme Narzo 60X 5G (Nebula Purple, 128 GB)", 
+                "price": "₹11,999",
+                "url": "https://www.flipkart.com/product-link"
+              }},
+              ...
+            ]
+
+            ⚠️ CRITICAL RULES:
+            - Only include the EXACT SAME product with same specifications (color, storage, etc.)
+            - If a specification is mentioned in the original title (e.g., "8GB RAM"), it MUST match in your results
+            - ALL critical identifiers MUST be present in your matches
+            - Do not include unrelated or generic products
+            - All URLs must point to valid product listings or specific search results
+            - Price should be a realistic market price (check typical price difference between Amazon and each platform)
+            - Format prices with ₹ symbol and thousands separators (like ₹11,999)
+            
+            Your response must be ONLY a valid JSON array as shown above, with no additional text, explanations, or formatting.
+            """
+            
+            # Try Gemini API first if available
+            if GEMINI_API_KEY:
+                try:
+                    # Gemini API endpoint
+                    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+                    
+                    headers = {
+                        'Content-Type': 'application/json'
+                    }
+                    
+                    # Gemini API has a different structure compared to OpenAI/Groq
+                    data = {
+                        "contents": [
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "text": prompt
+                                    }
+                                ]
+                            }
+                        ],
+                        "generationConfig": {
+                            "temperature": 0.2,
+                            "maxOutputTokens": 800,
+                            "topP": 0.8,
+                            "responseMimeType": "application/json"
+                        }
+                    }
+                    
+                    response = requests.post(api_url, headers=headers, json=data)
+                    response.raise_for_status()
+                    
+                    result = response.json()
+                    
+                    # Extract content from Gemini response
+                    if 'candidates' in result and len(result['candidates']) > 0:
+                        candidate = result['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+                            ai_response = candidate['content']['parts'][0].get('text', '')
+                            
+                            # Process the response...
+                            if ai_response and ai_response.strip():
+                                try:
+                                    cleaned_response = sanitize_json_string(ai_response)
+                                    ai_data = json.loads(cleaned_response)
+                                    
+                                    if isinstance(ai_data, list):
+                                        logger.info(f"Successfully parsed Gemini AI response with {len(ai_data)} product matches")
+                                        
+                                        # Transform into our format and return
+                                        comparisons = process_ai_product_matches(ai_data, product_name, product_brand, product_model, product_features, keywords)
+                                        if comparisons:
+                                            return comparisons
+                                except Exception as e:
+                                    logger.warning(f"Error processing Gemini AI response: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"Error using Gemini for platform search: {str(e)}")
+                    # Continue to fallback APIs
+            
+            # Fallback to Groq or OpenAI
             # Determine which API to use (prefer Groq if available)
             api_key = GROQ_API_KEY if GROQ_API_KEY else OPENAI_API_KEY
             api_endpoint = "https://api.groq.com/openai/v1/chat/completions" if GROQ_API_KEY else "https://api.openai.com/v1/chat/completions"
@@ -610,6 +918,7 @@ def search_other_platforms(metadata):
                         product_name, 
                         product_brand, 
                         product_model,
+                        keywords,
                         product_features
                     )
                     
