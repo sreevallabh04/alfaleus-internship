@@ -1,5 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { ProductData, PriceHistory, ApiResponse } from '../types';
 
 // Determine the API base URL based on environment
 const getBaseUrl = () => {
@@ -90,22 +91,38 @@ export const getAllProducts = async () => {
   }
 };
 
+// Alias for backwards compatibility
+export const getProducts = getAllProducts;
+
 // Get a specific product
-export const getProduct = async (id: number) => {
+export const getProduct = async (id: number): Promise<ApiResponse> => {
   const response = await api.get(`/products/${id}`);
   return response.data;
 };
 
+// Get price history for a product
+export const getPriceHistory = async (id: number): Promise<PriceHistory[]> => {
+  const response = await api.get(`/products/${id}/history`);
+  return response.data;
+};
+
 // Add a new product
-export const addProduct = async (url: string) => {
-  const response = await api.post("/products", { url });
+export const addProduct = async (
+  amazonUrl: string,
+  targetPrice: number,
+  email: string
+): Promise<ApiResponse> => {
+  const response = await api.post('/products', {
+    amazon_url: amazonUrl,
+    target_price: targetPrice,
+    email,
+  });
   return response.data;
 };
 
 // Delete a product
-export const deleteProduct = async (id: number) => {
-  const response = await api.delete(`/products/${id}`);
-  return response.data;
+export const deleteProduct = async (id: number): Promise<void> => {
+  await api.delete(`/products/${id}`);
 };
 
 // Create a price alert
@@ -129,3 +146,5 @@ export const compareProducts = async (url: string) => {
   const response = await api.post("/compare", { url });
   return response.data;
 };
+
+export default api;

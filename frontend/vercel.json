@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://pricepulse-api.vercel.app/api/:path*"
+      "destination": "https://pricepulse-backend.vercel.app/api/:path*"
     }
   ],
   "headers": [

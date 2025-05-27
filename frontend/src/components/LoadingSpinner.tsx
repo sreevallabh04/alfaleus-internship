@@ -1,26 +1,30 @@
 "use client"
 
 interface LoadingSpinnerProps {
-  size?: "sm" | "md" | "lg"
-  text?: string
-  className?: string
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-const LoadingSpinner = ({ size = "md", text, className = "" }: LoadingSpinnerProps) => {
+const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
+  size = 'md',
+  className = '',
+}) => {
   const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-8 w-8",
-    lg: "h-12 w-12",
-  }
+    sm: 'w-4 h-4',
+    md: 'w-6 h-6',
+    lg: 'w-8 h-8',
+  };
 
   return (
-    <div className={`flex flex-col items-center justify-center p-4 ${className}`}>
-      <div
-        className={`animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 ${sizeClasses[size]}`}
-      ></div>
-      {text && <p className="mt-2 text-sm text-gray-600">{text}</p>}
+    <div
+      className={`inline-block animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite] ${sizeClasses[size]} ${className}`}
+      role="status"
+    >
+      <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">
+        Loading...
+      </span>
     </div>
-  )
-}
+  );
+};
 
-export default LoadingSpinner
+export default LoadingSpinner;

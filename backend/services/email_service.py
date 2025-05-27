@@ -254,3 +254,82 @@ async def send_price_alert_email(alert, product, current_price):
     except Exception as e:
         logger.error(f"Error sending price alert email: {str(e)}")
         return False
+
+class EmailService:
+    def __init__(self, smtp_server, smtp_port, smtp_username, smtp_password):
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.smtp_username = smtp_username
+        self.smtp_password = smtp_password
+
+    def send_price_alert(self, to_email, product_title, current_price, target_price, product_url):
+        """Send a price alert email when a product's price drops below the target price"""
+        try:
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = self.smtp_username
+            msg['To'] = to_email
+            msg['Subject'] = f"Price Alert: {product_title} has dropped below your target price!"
+
+            # Create email body
+            body = f"""
+            <html>
+                <body>
+                    <h2>Price Alert!</h2>
+                    <p>The price of <strong>{product_title}</strong> has dropped below your target price!</p>
+                    <p>Current Price: ${current_price:.2f}</p>
+                    <p>Your Target Price: ${target_price:.2f}</p>
+                    <p>You're saving: ${(target_price - current_price):.2f}</p>
+                    <p>Check it out here: <a href="{product_url}">{product_url}</a></p>
+                    <p>This alert was sent on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </body>
+            </html>
+            """
+
+            msg.attach(MIMEText(body, 'html'))
+
+            # Send email
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg)
+
+            logger.info(f"Price alert email sent to {to_email} for product {product_title}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send price alert email: {str(e)}")
+            return False
+
+    def send_welcome_email(self, to_email, product_title):
+        """Send a welcome email when a user starts tracking a product"""
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.smtp_username
+            msg['To'] = to_email
+            msg['Subject'] = f"Welcome to PricePulse - Tracking {product_title}"
+
+            body = f"""
+            <html>
+                <body>
+                    <h2>Welcome to PricePulse!</h2>
+                    <p>You're now tracking <strong>{product_title}</strong>.</p>
+                    <p>We'll notify you when the price drops below your target price.</p>
+                    <p>Happy shopping!</p>
+                </body>
+            </html>
+            """
+
+            msg.attach(MIMEText(body, 'html'))
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg)
+
+            logger.info(f"Welcome email sent to {to_email} for product {product_title}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {str(e)}")
+            return False

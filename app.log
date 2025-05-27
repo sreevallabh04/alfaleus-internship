@@ -1,0 +1,24 @@
+2025-05-27 15:59:17,182 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-27 15:59:17,343 - models.db - INFO - Database tables created or verified
+2025-05-27 15:59:17,362 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-27 15:59:17,363 - __main__ - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-27 15:59:17,605 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-27 15:59:17,610 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-27 15:59:17,610 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-27 15:59:17,640 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-27 15:59:17,719 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.127.187:5000
+2025-05-27 15:59:17,719 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-05-27 15:59:17,750 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-05-27 15:59:21,353 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-27 15:59:21,400 - models.db - INFO - Database tables created or verified
+2025-05-27 15:59:21,410 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-27 15:59:21,412 - __main__ - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-27 15:59:21,536 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-27 15:59:21,540 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-27 15:59:21,541 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-27 15:59:21,542 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-27 15:59:21,571 - werkzeug - WARNING -  * Debugger is active!
+2025-05-27 15:59:21,585 - werkzeug - INFO -  * Debugger PIN: 316-319-957

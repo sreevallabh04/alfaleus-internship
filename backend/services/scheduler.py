@@ -9,11 +9,12 @@ from models.db import db
 from models.product import Product
 from models.price_record import PriceRecord
 from models.price_alert import PriceAlert
-from services.scraper import scrape_product # Assuming this is for Amazon
-from services.flipkart_scraper import scrape_flipkart_price # Import the new scraper
+from services.scraper import scrape_product, AmazonScraper
+from services.flipkart_scraper import scrape_flipkart_price
 from services.email_service import send_price_alert_email
-from services.ai_service import extract_product_metadata, search_other_platforms # Import AI service functions
+from services.ai_service import extract_product_metadata, search_other_platforms
 from datetime import datetime, timedelta
+from models.price_history import PriceHistory
 
 logger = logging.getLogger(__name__)
 
@@ -142,93 +143,49 @@ def calculate_update_priority(product, current_time=None):
 
 def update_all_prices(app, max_products=MAX_PRODUCTS_PER_RUN):
     """
-    Update prices for tracked products across all relevant platforms.
-    Products are prioritized based on various factors for efficient resource utilization.
-    
-    Args:
-        app: Flask application instance
-        max_products: Maximum number of products to update in this run (0 for no limit)
-    
+    Update prices for all tracked products.
     This function is called by the scheduler.
-    Enhanced with smart prioritization, better error handling, retries, and transaction management.
     """
     with app.app_context():
-        start_time = datetime.utcnow()
-        logger.info("Starting scheduled price update with smart prioritization")
-        
         try:
-            # Get all products
-            products = Product.query.all()
-            total_products = len(products)
-            logger.info(f"Found {total_products} products to evaluate for updates")
+            # Get all products that need price updates
+            products = Product.query.limit(max_products).all()
+            logger.info(f"Updating prices for {len(products)} products")
             
-            # Calculate priority for each product
-            priorities = []
+            scraper = AmazonScraper()
+            
             for product in products:
-                priority_data = calculate_update_priority(product, current_time=start_time)
-                priorities.append((product, priority_data))
-            
-            # Sort products by priority score (highest first)
-            priorities.sort(key=lambda x: x[1]['total_score'], reverse=True)
-            
-            # Determine how many products to update in this run
-            products_to_update = priorities
-            if max_products > 0 and max_products < total_products:
-                products_to_update = priorities[:max_products]
-                logger.info(f"Limiting update to top {max_products} priority products out of {total_products} total")
-            
-            # Log priority information for monitoring
-            logger.info("Priority order for this update run:")
-            for idx, (product, priority) in enumerate(products_to_update[:10]):  # Log top 10
-                logger.info(f"  {idx+1}. Product {product.id}: {product.name} - Score: {priority['total_score']:.2f} "
-                           f"(Time: {priority['time_factor']:.2f}, Volatility: {priority['volatility_factor']:.2f}, "
-                           f"Alerts: {priority['alert_factor']:.2f}, Recent changes: {priority['recent_change_factor']:.2f})")
-            
-            # Update the selected products
-            success_count = 0
-            error_count = 0
-            
-            for index, (product, priority) in enumerate(products_to_update):
-                logger.info(f"Processing product {index+1}/{len(products_to_update)}: "
-                           f"{product.name} (ID: {product.id}, Priority: {priority['total_score']:.2f})")
-                
-                # Create a separate transaction for each product
                 try:
-                    # Apply rate limiting between product updates
-                    if index > 0:
-                        time.sleep(random.uniform(0.5, RATE_LIMIT_DELAY))
-                    
-                    # Update the product with retries
-                    success = update_product_with_retries(product)
+                    # Scrape current price
+                    success, data = scraper.scrape_product(product.amazon_url)
                     
                     if success:
-                        success_count += 1
-                    else:
-                        error_count += 1
+                        # Update product price
+                        product.current_price = data['current_price']
+                        product.updated_at = datetime.utcnow()
                         
+                        # Add price to history
+                        price_history = PriceHistory(
+                            product_id=product.id,
+                            price=data['current_price']
+                        )
+                        db.session.add(price_history)
+                        
+                        logger.info(f"Updated price for product {product.id}: {data['current_price']}")
+                    else:
+                        logger.error(f"Failed to scrape price for product {product.id}: {data.get('error')}")
+                
                 except Exception as e:
-                    error_count += 1
-                    logger.error(f"Unhandled error updating product {product.id}: {str(e)}")
-                    logger.debug(traceback.format_exc())
+                    logger.error(f"Error updating price for product {product.id}: {str(e)}")
+                    continue
             
-            # Log summary statistics
-            end_time = datetime.utcnow()
-            duration = (end_time - start_time).total_seconds()
-            logger.info(f"Completed scheduled price update in {duration:.2f} seconds")
-            logger.info(f"Results: {success_count} successful updates, {error_count} failures out of {total_products} products")
-            
-            # Record the last update time for monitoring
-            app.config['LAST_PRICE_UPDATE'] = {
-                'timestamp': end_time.isoformat(),
-                'success_count': success_count,
-                'error_count': error_count,
-                'total_products': total_products,
-                'duration_seconds': duration
-            }
+            # Commit all changes
+            db.session.commit()
+            logger.info("Completed price update cycle")
             
         except Exception as e:
-            logger.error(f"Critical error in price update scheduler: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(f"Error in price update cycle: {str(e)}")
+            db.session.rollback()
 
 def update_product_with_retries(product):
     """

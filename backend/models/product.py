@@ -1,32 +1,31 @@
 from datetime import datetime
-from .db import db
+from models.db import db
 
 class Product(db.Model):
     __tablename__ = 'products'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    url = db.Column(db.String(512), nullable=False, unique=True)
-    image_url = db.Column(db.String(512))
-    description = db.Column(db.Text)
+    amazon_url = db.Column(db.String(500), unique=True, nullable=False)
+    title = db.Column(db.String(500))
+    image_url = db.Column(db.String(500))
     current_price = db.Column(db.Float)
-    currency = db.Column(db.String(10), default='USD')
+    target_price = db.Column(db.Float)
+    email = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    price_records = db.relationship('PriceRecord', backref='product', lazy=True, cascade='all, delete-orphan')
-    price_alerts = db.relationship('PriceAlert', backref='product', lazy=True, cascade='all, delete-orphan')
+    price_history = db.relationship('PriceHistory', backref='product', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
         return {
             'id': self.id,
-            'name': self.name,
-            'url': self.url,
+            'amazon_url': self.amazon_url,
+            'title': self.title,
             'image_url': self.image_url,
-            'description': self.description,
             'current_price': self.current_price,
-            'currency': self.currency,
-            'created_at': self.created_at.isoformat() if hasattr(self.created_at, 'isoformat') else self.created_at,
-            'updated_at': self.updated_at.isoformat() if hasattr(self.updated_at, 'isoformat') else self.updated_at
+            'target_price': self.target_price,
+            'email': self.email,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
         }

@@ -43,3 +43,27 @@ export interface ApiResponse {
   metadata?: any; // Add type for comparison metadata if needed
   is_mock_data?: boolean; // For comparison response
 }
+
+export interface ProductData {
+  price_history: {}
+  id: number;
+  amazon_url: string;
+  title: string;
+  image_url: string;
+  current_price: number;
+  target_price: number;
+  email: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PriceHistory {
+  id: number;
+  product_id: number;
+  price: number;
+  timestamp: string;
+}
+
+export interface ProductDetails extends ProductData {
+  priceHistory: PriceHistory[];
+}

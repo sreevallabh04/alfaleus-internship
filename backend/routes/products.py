@@ -1,226 +1,135 @@
 from flask import Blueprint, request, jsonify
-import asyncio
+from models.db import db
+from models.product import Product
+from models.price_history import PriceHistory
+from services.scraper import AmazonScraper
+from datetime import datetime
 import logging
-from services.database import (
-    get_all_products, get_product_by_id, get_price_history,
-    insert_product, insert_price_record, update_product_price,
-    delete_product_by_id, check_product_exists
-)
-from services.scraper import scrape_product
-from services.url_normalizer import normalize_amazon_url
 
 logger = logging.getLogger(__name__)
 products_bp = Blueprint('products', __name__)
+scraper = AmazonScraper()
 
-def run_async(coro):
-    """Helper function to run async functions in sync context"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-@products_bp.route('', methods=['GET'])
-def get_all_products_route():
-    """Get all tracked products"""
-    try:
-        products = run_async(get_all_products())
-        
-        # Products are already in dict format from database.py
-        products_list = products
-        
-        return jsonify({
-            'success': True,
-            'products': products_list
-        }), 200
-    except Exception as e:
-        logger.error(f"Error fetching products: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': 'Failed to fetch products',
-            'error': str(e)
-        }), 500
-
-@products_bp.route('/<int:product_id>', methods=['GET'])
-def get_product_route(product_id):
-    """Get a specific product with its price history grouped by platform"""
-    try:
-        product = run_async(get_product_by_id(product_id))
-        if not product:
-            logger.warning(f"Product with ID {product_id} not found")
-            return jsonify({
-                'success': False,
-                'message': f'Product with ID {product_id} not found'
-            }), 404
-
-        # Get all price history records for the product
-        price_records = run_async(get_price_history(product_id))
-
-        # Group price records by platform
-        price_history_grouped = {}
-        for record in price_records:
-            platform = record.get('platform', 'Unknown') # Default to 'Unknown' if platform is missing
-            if platform not in price_history_grouped:
-                price_history_grouped[platform] = []
-            price_history_grouped[platform].append(record)
-
-        # Product is already in dict format from database.py
-        product_dict = product
-
-        return jsonify({
-            'success': True,
-            'product': product_dict,
-            'price_history': price_history_grouped # Return grouped data
-        }), 200
-    except Exception as e:
-        logger.error(f"Error fetching product {product_id} with grouped history: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to fetch product details and history for ID {product_id}',
-            'error': str(e)
-        }), 500
-
-@products_bp.route('', methods=['POST'])
-def add_product_route():
+@products_bp.route('/products', methods=['POST'])
+def add_product():
     """Add a new product to track"""
     try:
         data = request.get_json()
-        
-        if not data or 'url' not in data:
-            return jsonify({
-                'success': False,
-                'message': 'URL is required'
-            }), 400
-        
-        # Normalize URL if it's an Amazon URL
-        url = normalize_amazon_url(data['url'])
-        
+        amazon_url = data.get('amazon_url')
+        target_price = data.get('target_price')
+        email = data.get('email')
+
+        if not all([amazon_url, target_price, email]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Validate Amazon URL
+        if not scraper.is_valid_amazon_url(amazon_url):
+            return jsonify({'error': 'Invalid Amazon URL'}), 400
+
         # Check if product already exists
-        existing_product = run_async(check_product_exists(url))
+        existing_product = Product.query.filter_by(amazon_url=amazon_url).first()
         if existing_product:
-            # Product is already in dict format with properly formatted dates
-            product_dict = existing_product
-            return jsonify({
-                'success': True,
-                'message': 'Product is already being tracked',
-                'product': product_dict
-            }), 200
-        
+            return jsonify({'error': 'Product already being tracked'}), 409
+
         # Scrape product details
-        product_data = scrape_product(url)
-        if not product_data:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to scrape product information'
-            }), 400
-        
+        success, data = scraper.scrape_product(amazon_url)
+        if not success:
+            return jsonify({'error': data.get('error', 'Failed to scrape product details')}), 400
+
         # Create new product
-        new_product = run_async(insert_product(
-            product_data['name'],
-            url,
-            product_data.get('image_url'),
-            product_data.get('description'),
-            product_data.get('price'),
-            product_data.get('currency', 'USD')
-        ))
-        
-        # Create initial price record
-        if product_data.get('price'):
-            run_async(insert_price_record(new_product['id'], product_data['price']))
-        
-        logger.info(f"Added new product: {new_product['name']} (ID: {new_product['id']})")
-        
-        # Product is already in dict format with properly formatted dates
-        product_dict = new_product
-        
-        return jsonify({
-            'success': True,
-            'message': 'Product added successfully',
-            'product': product_dict
-        }), 201
+        product = Product(
+            amazon_url=amazon_url,
+            title=data['title'],
+            image_url=data['image_url'],
+            current_price=data['current_price'],
+            target_price=target_price,
+            email=email
+        )
+        db.session.add(product)
+
+        # Add initial price history
+        price_history = PriceHistory(
+            product_id=product.id,
+            price=data['current_price']
+        )
+        db.session.add(price_history)
+        db.session.commit()
+
+        return jsonify(product.to_dict()), 201
+
     except Exception as e:
         logger.error(f"Error adding product: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': 'Failed to add product',
-            'error': str(e)
-        }), 500
+        db.session.rollback()
+        return jsonify({'error': 'Internal server error'}), 500
 
-@products_bp.route('/<int:product_id>', methods=['DELETE'])
-def delete_product_route(product_id):
-    """Delete a product and all its associated data"""
+@products_bp.route('/products', methods=['GET'])
+def get_products():
+    """Get all tracked products"""
     try:
-        deleted_product = run_async(delete_product_by_id(product_id))
-        if not deleted_product:
-            return jsonify({
-                'success': False,
-                'message': f'Product with ID {product_id} not found'
-            }), 404
-        
-        logger.info(f"Deleted product: {deleted_product['name']} (ID: {product_id})")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Product {deleted_product["name"]} deleted successfully'
-        }), 200
+        products = Product.query.all()
+        return jsonify([product.to_dict() for product in products])
+
+    except Exception as e:
+        logger.error(f"Error fetching products: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@products_bp.route('/products/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    """Get details of a specific product"""
+    try:
+        product = Product.query.get_or_404(product_id)
+        return jsonify(product.to_dict())
+
+    except Exception as e:
+        logger.error(f"Error fetching product {product_id}: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@products_bp.route('/products/<int:product_id>/history', methods=['GET'])
+def get_price_history(product_id):
+    """Get price history for a specific product"""
+    try:
+        history = PriceHistory.query.filter_by(product_id=product_id).order_by(PriceHistory.timestamp.desc()).all()
+        return jsonify([record.to_dict() for record in history])
+
+    except Exception as e:
+        logger.error(f"Error fetching price history for product {product_id}: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@products_bp.route('/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    """Delete a tracked product"""
+    try:
+        product = Product.query.get_or_404(product_id)
+        db.session.delete(product)
+        db.session.commit()
+        return '', 204
+
     except Exception as e:
         logger.error(f"Error deleting product {product_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to delete product with ID {product_id}',
-            'error': str(e)
-        }), 500
+        db.session.rollback()
+        return jsonify({'error': 'Internal server error'}), 500
 
-@products_bp.route('/update', methods=['POST'])
-def update_product_price_route():
-    """Manually update a product's price (for serverless environments)"""
-    try:
-        data = request.get_json()
-        
-        if not data or 'product_id' not in data:
-            return jsonify({
-                'success': False,
-                'message': 'Product ID is required'
-            }), 400
-        
-        product = run_async(get_product_by_id(data['product_id']))
-        if not product:
-            return jsonify({
-                'success': False,
-                'message': f'Product with ID {data["product_id"]} not found'
-            }), 404
-        
-        # Scrape current product data
-        product_data = scrape_product(product['url'])
-        
-        if not product_data or 'price' not in product_data:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to scrape current price'
-            }), 400
-        
-        new_price = product_data['price']
-        
-        # Update product price
-        updated_product = run_async(update_product_price(product['id'], new_price))
-        
-        # Add price record
-        run_async(insert_price_record(product['id'], new_price))
-        
-        # Check for alerts
-        from services.alerts import check_and_trigger_alerts
-        run_async(check_and_trigger_alerts(product['id'], new_price))
-        
-        return jsonify({
-            'success': True,
-            'message': f'Price updated for product: {product["name"]}',
-            'current_price': new_price
-        }), 200
-    except Exception as e:
-        logger.error(f"Error updating product price: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': 'Failed to update product price',
-            'error': str(e)
-        }), 500
+@products_bp.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors"""
+    return jsonify({
+        'success': False,
+        'message': 'Endpoint not found'
+    }), 404
+
+@products_bp.errorhandler(405)
+def method_not_allowed_error(error):
+    """Handle 405 errors"""
+    return jsonify({
+        'success': False,
+        'message': 'Method not allowed'
+    }), 405
+
+@products_bp.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors"""
+    logger.error(f"Internal server error: {str(error)}")
+    return jsonify({
+        'success': False,
+        'message': 'Internal server error'
+    }), 500

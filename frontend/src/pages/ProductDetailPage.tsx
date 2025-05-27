@@ -27,10 +27,15 @@ const ProductDetailPage = () => {
       setError(null)
 
       try {
-        const data = await getProduct(Number.parseInt(id))
-        setProduct(data.product)
-        // Set the price history directly as received from the backend
-        setPriceHistory(data.price_history || {}) // Ensure it's an object even if null/undefined
+        // Fix: Use parseInt with radix or Number()
+        const data = await getProduct(parseInt(id, 10));
+        if (data.success && data.product) {
+          setProduct(data.product);
+          // Set the price history directly as received from the backend
+          setPriceHistory(data.price_history || {}); // Ensure it's an object even if null/undefined
+        } else {
+          setError(data.message || "Failed to load product details.");
+        }
       } catch (error) {
         console.error("Error fetching product details:", error)
         setError("Failed to load product details. Please try again.")
@@ -85,9 +90,13 @@ const ProductDetailPage = () => {
             <div className="md:w-1/3 flex justify-center">
               {product.image_url ? (
                 <img
-                  src={product.image_url || "/placeholder.svg"}
+                  src={product.image_url}
                   alt={product.name}
                   className="max-h-64 object-contain"
+                  onError={(e) => {
+                    // Fix: Add error handling for broken images
+                    e.currentTarget.style.display = 'none'
+                  }}
                 />
               ) : (
                 <div className="w-full h-64 bg-gray-200 flex items-center justify-center text-gray-400">
