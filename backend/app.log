@@ -446,3 +446,153 @@ WHERE price_records.product_id = ? AND price_records.timestamp >= ? ORDER BY pri
 2025-05-27 15:42:05,597 - apscheduler.scheduler - INFO - Scheduler has been shut down
 2025-05-27 15:42:05,899 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
 2025-05-27 15:42:06,149 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-27 15:42:09,301 - __main__ - INFO - CORS configured for all origins (development mode)
+2025-05-27 15:42:09,336 - models.db - INFO - Database tables created or verified
+2025-05-27 15:42:09,340 - __main__ - INFO - Initializing scheduler for non-serverless environment
+2025-05-27 15:42:09,341 - __main__ - INFO - Scheduler config: check_interval=30m, max_products=100
+2025-05-27 15:42:09,417 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-05-27 15:42:09,421 - apscheduler.scheduler - INFO - Added job "update_all_prices" to job store "default"
+2025-05-27 15:42:09,422 - apscheduler.scheduler - INFO - Scheduler started
+2025-05-27 15:42:09,423 - __main__ - INFO - Price update scheduler started with interval: 30 minutes
+2025-05-27 15:42:09,444 - werkzeug - WARNING -  * Debugger is active!
+2025-05-27 15:42:09,449 - werkzeug - INFO -  * Debugger PIN: 316-319-957
+2025-05-27 15:42:09,835 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-27 15:42:09,835 - services.scraper - INFO - Waiting 1.89 seconds before attempt 2/5
+2025-05-27 15:42:11,725 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-27 15:42:14,369 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:14] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:42:15,050 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-27 15:42:15,050 - services.scraper - INFO - Waiting 2.41 seconds before attempt 3/5
+2025-05-27 15:42:17,462 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-27 15:42:20,042 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:42:20,331 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:42:20,368 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:42:20,648 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:42:20,683 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:42:20,793 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-27 15:42:20,794 - services.scraper - INFO - Waiting 2.48 seconds before attempt 4/5
+2025-05-27 15:42:21,000 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:20] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:42:23,273 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-27 15:42:27,550 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-27 15:42:27,551 - services.scraper - INFO - Waiting 3.55 seconds before attempt 5/5
+2025-05-27 15:42:31,099 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-27 15:42:35,105 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:35] "OPTIONS /api/products HTTP/1.1" 200 -
+2025-05-27 15:42:35,368 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B06Y1YYB25
+2025-05-27 15:42:35,370 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-27 15:42:35,371 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-27 15:42:35,371 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B06Y1YYB25
+2025-05-27 15:42:35,372 - services.scraper - INFO - Extracted product ID from URL: B06Y1YYB25
+2025-05-27 15:42:35,373 - services.scraper - INFO - Waiting 1.34 seconds before attempt 1/5
+2025-05-27 15:42:36,276 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-27 15:42:36,277 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-27 15:42:36,278 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0D7LKX76Y
+2025-05-27 15:42:36,716 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-27 15:42:40,990 - services.scraper - INFO - Successfully extracted product name from mobile site: Consider these available items
+2025-05-27 15:42:40,998 - services.scraper - INFO - Successfully scraped Amazon product: Consider these available items
+2025-05-27 15:42:41,194 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-27 15:42:41,195 - services.scraper - INFO - Waiting 1.48 seconds before attempt 2/5
+2025-05-27 15:42:42,676 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-27 15:42:43,139 - services.ai_service - ERROR - Error enhancing metadata with Gemini AI: 404 Client Error: Not Found for url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyDle9KLhixAi5Q9vkS4p0R8s-jLC75RXEI
+2025-05-27 15:42:44,469 - services.ai_service - INFO - Successfully parsed Groq AI response for product: Consider these available items
+2025-05-27 15:42:45,422 - services.scheduler - ERROR - Error searching/scraping other platforms for product 1: 'NoneType' object has no attribute 'strip'
+2025-05-27 15:42:45,425 - services.scheduler - ERROR - Error updating product 1 (attempt 1/3): 'NoneType' object has no attribute 'strip'
+2025-05-27 15:42:45,444 - services.scheduler - INFO - Retry attempt 2 for product 1 after 2.66s delay
+2025-05-27 15:42:46,261 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-27 15:42:46,262 - services.scraper - INFO - Waiting 2.59 seconds before attempt 3/5
+2025-05-27 15:42:48,109 - services.scheduler - INFO - Updating prices for product: MSI PRO MP225 21.5 Inch Full HD Office Monitor - 1920 x 1080 IPS Panel, 100 Hz, Eye-Friendly Screen, Tilt-Adjustable - HDMI, D-Sub (VGA) (ID: 1)
+2025-05-27 15:42:48,110 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-27 15:42:48,111 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-27 15:42:48,113 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-27 15:42:48,113 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-27 15:42:48,114 - services.scraper - INFO - Extracted product ID from URL: B0D7LKX76Y
+2025-05-27 15:42:48,115 - services.scraper - INFO - Waiting 1.10 seconds before attempt 1/5
+2025-05-27 15:42:48,857 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-27 15:42:49,216 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-27 15:42:50,025 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:42:50] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:42:52,383 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-27 15:42:52,384 - services.scraper - INFO - Waiting 1.93 seconds before attempt 2/5
+2025-05-27 15:42:52,437 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-27 15:42:52,437 - services.scraper - INFO - Waiting 1.32 seconds before attempt 4/5
+2025-05-27 15:42:53,761 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-27 15:42:54,311 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-27 15:42:57,180 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-27 15:42:57,181 - services.scraper - INFO - Waiting 2.41 seconds before attempt 5/5
+2025-05-27 15:42:57,761 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-27 15:42:57,762 - services.scraper - INFO - Waiting 1.19 seconds before attempt 3/5
+2025-05-27 15:42:58,954 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-27 15:42:59,594 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-27 15:43:02,248 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-27 15:43:02,249 - services.scraper - INFO - Waiting 1.50 seconds before attempt 4/5
+2025-05-27 15:43:03,321 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-27 15:43:03,322 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-27 15:43:03,323 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B06Y1YYB25
+2025-05-27 15:43:03,749 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-27 15:43:07,293 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-27 15:43:07,294 - services.scraper - INFO - Waiting 1.51 seconds before attempt 5/5
+2025-05-27 15:43:08,256 - services.scraper - INFO - Successfully extracted product name from mobile site: Casio FX-CG50 Scientific Graphic Calculator (Black)
+2025-05-27 15:43:08,357 - services.scraper - INFO - Successfully scraped Amazon product: Casio FX-CG50 Scientific Graphic Calculator (Black)
+2025-05-27 15:43:08,404 - services.database - ERROR - Error inserting price record: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (7, 13994.0, 'Amazon', '2025-05-27 10:13:08.403043')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:08,405 - routes.products - ERROR - Error adding product: (sqlite3.OperationalError) table price_records has no column named platform
+[SQL: INSERT INTO price_records (product_id, price, platform, timestamp) VALUES (?, ?, ?, ?)]
+[parameters: (7, 13994.0, 'Amazon', '2025-05-27 10:13:08.403043')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:08,407 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:08] "[35m[1mPOST /api/products HTTP/1.1[0m" 500 -
+2025-05-27 15:43:08,806 - services.scraper - INFO - Sending request to Amazon (attempt 5/5) with timeout of 35 seconds
+2025-05-27 15:43:12,496 - services.scraper - WARNING - Detected captcha/bot protection on attempt 5
+2025-05-27 15:43:12,497 - services.scraper - WARNING - All standard scraping attempts failed, trying aggressive fallback methods
+2025-05-27 15:43:12,498 - services.scraper - INFO - Trying mobile URL: https://www.amazon.in/gp/aw/d/B0D7LKX76Y
+2025-05-27 15:43:16,067 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:43:16,079 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:43:16,294 - services.scraper - INFO - Successfully extracted product name from mobile site: Consider these available items
+2025-05-27 15:43:16,304 - services.scraper - INFO - Successfully scraped Amazon product: Consider these available items
+2025-05-27 15:43:16,305 - services.scheduler - ERROR - Error updating main platform price for product 1: 'recorded_at' is an invalid keyword argument for PriceRecord
+2025-05-27 15:43:16,307 - services.scraper - INFO - Starting scrape for URL: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-27 15:43:16,307 - services.scraper - INFO - Detected domain: www.amazon.in
+2025-05-27 15:43:16,307 - services.scraper - INFO - Amazon scraping attempt 1/3
+2025-05-27 15:43:16,308 - services.scraper - INFO - Starting Amazon scraping for: https://www.amazon.in/dp/B0D7LKX76Y
+2025-05-27 15:43:16,308 - services.scraper - INFO - Extracted product ID from URL: B0D7LKX76Y
+2025-05-27 15:43:16,308 - services.scraper - INFO - Waiting 1.68 seconds before attempt 1/5
+2025-05-27 15:43:16,324 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/health HTTP/1.1" 200 -
+2025-05-27 15:43:16,394 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:43:16,410 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:43:16,734 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:16] "GET /api/products HTTP/1.1" 200 -
+2025-05-27 15:43:17,990 - services.scraper - INFO - Sending request to Amazon (attempt 1/5) with timeout of 15 seconds
+2025-05-27 15:43:21,336 - services.scraper - WARNING - Detected captcha/bot protection on attempt 1
+2025-05-27 15:43:21,336 - services.scraper - INFO - Waiting 1.99 seconds before attempt 2/5
+2025-05-27 15:43:23,325 - services.scraper - INFO - Sending request to Amazon (attempt 2/5) with timeout of 20 seconds
+2025-05-27 15:43:25,827 - services.database - ERROR - Error getting price history for product 7: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (7,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:25,828 - routes.products - ERROR - Error fetching product 7 with grouped history: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (7,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:25,830 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:25] "[35m[1mGET /api/products/7 HTTP/1.1[0m" 500 -
+2025-05-27 15:43:26,094 - services.database - ERROR - Error getting price history for product 7: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (7,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:26,097 - routes.products - ERROR - Error fetching product 7 with grouped history: (sqlite3.OperationalError) no such column: price_records.platform
+[SQL: SELECT price_records.id AS price_records_id, price_records.product_id AS price_records_product_id, price_records.price AS price_records_price, price_records.platform AS price_records_platform, price_records.timestamp AS price_records_timestamp 
+FROM price_records 
+WHERE price_records.product_id = ? ORDER BY price_records.timestamp ASC]
+[parameters: (7,)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-05-27 15:43:26,100 - werkzeug - INFO - 127.0.0.1 - - [27/May/2025 15:43:26] "[35m[1mGET /api/products/7 HTTP/1.1[0m" 500 -
+2025-05-27 15:43:26,647 - services.scraper - WARNING - Detected captcha/bot protection on attempt 2
+2025-05-27 15:43:26,648 - services.scraper - INFO - Waiting 1.34 seconds before attempt 3/5
+2025-05-27 15:43:27,992 - services.scraper - INFO - Sending request to Amazon (attempt 3/5) with timeout of 25 seconds
+2025-05-27 15:43:31,599 - services.scraper - WARNING - Detected captcha/bot protection on attempt 3
+2025-05-27 15:43:31,601 - services.scraper - INFO - Waiting 3.50 seconds before attempt 4/5
+2025-05-27 15:43:35,102 - services.scraper - INFO - Sending request to Amazon (attempt 4/5) with timeout of 30 seconds
+2025-05-27 15:43:38,537 - services.scraper - WARNING - Detected captcha/bot protection on attempt 4
+2025-05-27 15:43:38,537 - services.scraper - INFO - Waiting 3.40 seconds before attempt 5/5
