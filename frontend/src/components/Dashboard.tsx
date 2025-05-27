@@ -58,8 +58,9 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner size="lg" text="Loading dashboard data..." />
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <LoadingSpinner size="lg" className="text-blue-600" />
+        <p className="text-gray-500 font-medium animate-pulse">Loading dashboard data...</p>
       </div>
     )
   }
