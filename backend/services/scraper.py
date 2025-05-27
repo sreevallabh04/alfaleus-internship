@@ -1582,7 +1582,7 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
     if custom_product_name:
         logger.info(f"Using custom product name: {custom_product_name}")
         name = custom_product_name
-        brand = extract_brand_from_name(name)
+        brand = "Unknown Brand"
         
         return {
             'name': name,
@@ -1618,7 +1618,7 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
             mock_data['image_url'] = 'https://via.placeholder.com/500'
             
         if 'brand' not in mock_data:
-            mock_data['brand'] = extract_brand_from_name(mock_data.get('name', ''))
+            mock_data['brand'] = "Unknown Brand"
         
         mock_data['is_mock_data'] = True
         logger.info(f"Generated enhanced mock data from existing metadata for: {mock_data.get('name')}")
@@ -1629,7 +1629,6 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
     if url_name:
         logger.info(f"Extracted product name from URL: {url_name}")
         name = url_name
-        brand = extract_brand_from_name(name)
         
         return {
             'name': name,
@@ -1685,7 +1684,7 @@ def get_mock_product_data(url, existing_metadata=None, custom_product_name=None)
         # Use product ID if available
         name = f"{category} {product_id}" if product_id else f"Unknown {category}"
     
-    brand = extract_brand_from_name(name)
+    brand = "Unknown Brand"
     
     return {
         'name': name,

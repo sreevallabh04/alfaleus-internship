@@ -15,7 +15,7 @@ import { formatCurrency } from "../utils/formatters"
 const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const [product, setProduct] = useState<Product | null>(null)
-  const [priceHistory, setPriceHistory] = useState<PriceRecord[]>([])
+  const [priceHistory, setPriceHistory] = useState<{ [platform: string]: PriceRecord[] }>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

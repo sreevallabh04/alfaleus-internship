@@ -13,7 +13,7 @@ interface PriceChartProps {
 
 interface ChartData {
   date: string;
-  [platform: string]: number | undefined; // Price for each platform on this date
+  [key: string]: string | number | undefined; // Allow date (string) and platform prices (number | undefined)
 }
 
 const getPlatformColor = (platform: string): string => {

@@ -29,7 +29,7 @@ const Dashboard = () => {
 
           // Calculate stats
           const totalProducts = products.length
-          const totalValue = products.reduce((sum, product) => sum + (product.current_price || 0), 0)
+          const totalValue = products.reduce((sum: number, product: Product) => sum + (product.current_price || 0), 0)
           const avgPrice = totalProducts > 0 ? totalValue / totalProducts : 0
           const priceDrops = 0 // This would need price history to calculate
           const currency = products.length > 0 ? products[0].currency : "USD"
